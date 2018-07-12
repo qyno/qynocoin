@@ -1,0 +1,6 @@
+usr/local/bin/qyno-qt usr/bin
+share/pixmaps/qyno32.xpm usr/share/pixmaps
+share/pixmaps/qyno16.xpm usr/share/pixmaps
+share/pixmaps/qyno128.png usr/share/pixmaps
+debian/qyno-qt.desktop usr/share/applications
+debian/qyno-qt.protocol usr/share/kde4/services/

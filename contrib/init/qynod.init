@@ -1,0 +1,67 @@
+#!/bin/bash
+#
+#  qynod The Qyno Core server.
+#
+#
+# chkconfig: 345 80 20
+# description: qynod
+# processname: qynod
+#
+
+# Source function library.
+. /etc/init.d/functions
+
+# you can override defaults in /etc/sysconfig/qynod, see below
+if [ -f /etc/sysconfig/qynod ]; then
+        . /etc/sysconfig/qynod
+fi
+
+RETVAL=0
+
+prog=qynod
+# you can override the lockfile via BITCOIND_LOCKFILE in /etc/sysconfig/qynod
+lockfile=${BITCOIND_LOCKFILE-/var/lock/subsys/qynod}
+
+# qynod defaults to /usr/bin/qynod, override with BITCOIND_BIN
+qynod=${BITCOIND_BIN-/usr/bin/qynod}
+
+# qynod opts default to -disablewallet, override with BITCOIND_OPTS
+qynod_opts=${BITCOIND_OPTS--disablewallet}
+
+start() {
+    echo -n $"Starting $prog: "
+    daemon $DAEMONOPTS $qynod $qynod_opts
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch $lockfile
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping $prog: "
+    killproc $prog
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && rm -f $lockfile
+    return $RETVAL
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    status)
+        status $prog
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    *)
+        echo "Usage: service $prog {start|stop|status|restart}"
+        exit 1
+        ;;
+esac

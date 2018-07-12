@@ -1,0 +1,12 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Qyno
+Comment=Qyno P2P Cryptocurrency
+Comment[fr]=Qyno, monnaie virtuelle cryptographique pair à pair
+Comment[tr]=Qyno, eşten eşe kriptografik sanal para birimi
+Exec=qyno-qt %u
+Terminal=false
+Type=Application
+Icon=qyno128
+MimeType=x-scheme-handler/qyno;
+Categories=Office;Finance;

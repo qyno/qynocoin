@@ -1,0 +1,22 @@
+[Unit]
+Description=Qyno's distributed currency daemon
+After=network.target
+
+[Service]
+User=qyno
+Group=qyno
+
+Type=forking
+PIDFile=/var/lib/qynod/qynod.pid
+ExecStart=/usr/bin/qynod -daemon -pid=/var/lib/qynod/qynod.pid \
+-conf=/etc/qyno/qyno.conf -datadir=/var/lib/qynod -disablewallet
+
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=2s
+StartLimitInterval=120s
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
