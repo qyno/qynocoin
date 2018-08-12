@@ -21,7 +21,7 @@ the Qyno Core software, see https://www.qyno.org/qyno-wallet-download.
 • Type: POW + Masternode
 • Block Time: 60 Seconds  
 • PoW Max Coin Output/Supply: 100,000,000 
-• Masternode Requirements: 5,000 NYX  
+• Masternode Requirements: 5,000 NQNO 
 • Maturity: 101 Confirmations 
 
 ## License
