@@ -124,6 +124,7 @@ public:
         vSeeds.push_back(CDNSSeedData("2", "seed2.qyno.org"));
         vSeeds.push_back(CDNSSeedData("3", "seed3.qyno.org"));
         vSeeds.push_back(CDNSSeedData("4", "seed4.qyno.org"));
+        vSeeds.push_back(CDNSSeedData("5", "seed5.qyno.org"));		
 
         // Qyno addresses start with 'Q'
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,58);
@@ -156,10 +157,9 @@ public:
             (        0, uint256S("0x0000009fe4cf87f5dc22418c05ef23b82e1b05f1e29f4b7a1fa7bafa596c7669"))
 			(    11000, uint256S("0x000000001fd6e9ee87948059625c59793dee34dd1ec35bedec3b104a0678e66d"))
 			(    78635, uint256S("0x00000000003616c7d19c69bd13cc87db68ba67a14b7274458cd9811458e9a244"))
-			(    81470, uint256S("0x000000000bfe7c753a0c37573d7d64488905abea0755e705969f4f951dc24ecc"))
-			(    82663, uint256S("0x000000000339723f4ee6ae27cd53b1f564a862999a2b6547416b640e902df17f")), 			
-            1536909879, // * UNIX timestamp of last checkpoint block
-                136318, // * total number of transactions between genesis and last checkpoint(the tx=... number in the SetBestChain debug.log lines)
+			(    82810, uint256S("0x0000000010ab8965b7b25115e055ea5b31e584fb5c5a2048b9b5a041f51a932d")), 			
+            1536919562, // * UNIX timestamp of last checkpoint block
+                136562, // * total number of transactions between genesis and last checkpoint(the tx=... number in the SetBestChain debug.log lines)
                   5000  // * estimated number of transactions per day after checkpoint
         };
     }
