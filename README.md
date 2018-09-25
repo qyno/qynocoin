@@ -23,6 +23,8 @@ the Qyno Core software, see https://www.qyno.org/qyno-wallet-download.
 * Max Coin Output/Supply: 31,000,000
 * Masternode Requirements: 5,000 QNO
 * Maturity: 101 Confirmations
+* P2P port: 39741
+* RPC port: 39742
 
 ## License
 -------
