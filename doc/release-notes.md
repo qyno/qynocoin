@@ -1,145 +1,208 @@
-Qyno Core version 0.12.2.3
-==========================
+Qyno Core version 2.3.1 is now available from:
 
-Release is now available from:
+  <https://github.com/qyno/qynocoin/releases>
 
-  <https://www.qyno.org/downloads/#wallets>
-
-This is a new minor version release, bringing various bugfixes and other
-improvements.
+This is a new minor version release, including various bug fixes and
+performance improvements, as well as updated translations.
 
 Please report bugs using the issue tracker at github:
 
   <https://github.com/qyno/qynocoin/issues>
 
+Compatibility
+==============
 
-Upgrading and downgrading
-=========================
+Qyno Core is extensively tested on multiple operating systems using
+the Linux kernel, macOS 10.8+, and Windows Vista and later.
 
-How to Upgrade
---------------
+Microsoft ended support for Windows XP on [April 8th, 2014](https://www.microsoft.com/en-us/WindowsForBusiness/end-of-xp-support),
+No attempt is made to prevent installing or running the software on Windows XP, you
+can still do so at your own risk but be aware that there are known instabilities and issues.
+Please do not report issues about Windows XP to the issue tracker.
 
-If you are running an older version, shut it down. Wait until it has completely
-shut down (which might take a few minutes for older versions), then run the
-installer (on Windows) or just copy over /Applications/Qyno-Qt (on Mac) or
-qynod/qyno-qt (on Linux).
+Qyno Core should also work on most other Unix-like systems but is not
+frequently tested on them.
 
-Downgrade warning
------------------
-
-### Downgrade to a version < 0.12.2.2
-
-Because release 0.12.2.2 included the [per-UTXO fix](release-notes/qyno/release-notes-0.12.2.2.md#per-utxo-fix)
-which changed the structure of the internal database, you will have to reindex
-the database if you decide to use any pre-0.12.2.2 version.
-
-Wallet forward or backward compatibility was not affected.
-
-### Downgrade to 0.12.2.2
-
-Downgrading to 0.12.2.2 does not require any additional actions, should be
-fully compatible.
-
-Notable changes
+Notable Changes
 ===============
 
-InstantSend fixes
------------------
+RPC changes
+--------------
 
-Coin selection could work slightly incorrect in some edge cases which could
-lead to a creation of an InstantSend transaction which only the local wallet
-would consider to be a good candidate for a lock. Such txes was not locked by
-the network but they were creating a confusion on the user side giving an
-impression of a slightly higher InstantSend failure rate.
+#### Update of RPC commands to comply with the forthcoming RPC Standards PIP ####
 
-Another issue fixed in this release is that masternodes could vote for a tx
-that is not going to be accepted to the mempool sometimes. This could lead to
-a situation when user funds would be locked even though InstantSend transaction
-would not show up on the receiving side.
+| Old Command | New Command | Notes |
+| --- | --- | --- |
+| `masternode count` | `getmasternodecount` | |
+| `masternode list` | `listmasternodes` | |
+| `masternodelist` | `listmasternodes` | renamed |
+| `masternode connect` | `masternodeconnect` | |
+| `masternode current` | `getcurrentmasternode` | |
+| `masternode debug` | `masternodedebug` | |
+| `masternode enforce` |  | removed |
+| `masternode outputs` | `getmasternodeoutputs` | |
+| `masternode status` | `getmasternodestatus` | |
+| `masternode list-conf` | `listmasternodeconf` | added optional filter |
+| `masternode genkey` | `createmasternodekey` | |
+| `masternode winners` | `listmasternodewinners` | |
+| `masternode start` | `startmasternode` | see notes below |
+| `masternode start-alias` | `startmasternode` | see notes below |
+| `masternode start-<mode>` | `startmasternode` | see notes below |
+| `masternode create` | | removed - not implemented |
+| `masternode calcscore` | `listmasternodescores` | |
+| --- | --- | --- |
+| `mnbudget prepare` | `preparebudget` | see notes below |
+| `mnbudget submit` | `submitbudget` | see notes below |
+| `mnbudget vote-many` | `mnbudgetvote` | see notes below |
+| `mnbudget vote-alias` | `mnbudgetvote` | see notes below |
+| `mnbudget vote` | `mnbudgetvote` | see notes below |
+| `mnbudget getvotes` | `getbudgetvotes` | |
+| `mnbudget getinfo` | `getbudgetinfo` | see notes below |
+| `mnbudget show` | `getbudgetinfo` | see notes below |
+| `mnbudget projection` | `getbudgetprojection` | |
+| `mnbudget check` | `checkbudgets` | |
+| `mnbudget nextblock` | `getnextsuperblock` | |
 
-Fix -liquidityprovider option
------------------------------
+##### `startmasternode` Command #####
+This command now handles all cases for starting a masternode instead of having multiple commands based on the context. Command arguments have changed slightly to allow the user to decide wither or not to re-lock the wallet after the command is run. Below is the help documentation:
 
-Turned out that liquidityprovider mixing mode practically stopped working after
-recent improvements in the PrivateSend mixing algorithm due to a suboptimal
-looping which occurs only in this mode (due to a huge number of rounds). To fix
-the issue a small part of the mixing algorithm was reverted to a pre-0.12.2 one
-for this mode only. Regular users were not affected by the issue in any way and
-will continue to use the improved one just like before.
+```
+startmasternode "local|all|many|missing|disabled|alias" lockwallet ( "alias" )
 
-Other improvements and bug fixes
---------------------------------
+ Attempts to start one or more masternode(s)
 
-This release also fixes a few crashes and compatibility issues.
+Arguments:
+1. set         (string, required) Specify which set of masternode(s) to start.
+2. lockWallet  (boolean, required) Lock wallet after completion.
+3. alias       (string) Masternode alias. Required if using 'alias' as the set.
+
+Result: (for 'local' set):
+"status"     (string) Masternode status message
+
+Result: (for other sets):
+{
+  "overall": "xxxx",     (string) Overall status message
+  "detail": [
+    {
+      "node": "xxxx",    (string) Node name or alias
+      "result": "xxxx",  (string) 'success' or 'failed'
+      "error": "xxxx"    (string) Error message, if failed
+    }
+    ,...
+  ]
+}
+
+Examples:
+> qyno-cli masternodestart "alias" "my_mn"
+> curl --user myusername --data-binary '{"jsonrpc": "1.0", "id":"curltest", "method": "masternodestart", "params": ["alias" "my_mn"] }' -H 'content-type: text/plain;' http://127.0.0.1:39742/
+```
+
+##### `preparebudget` & `submitbudget` Commands #####
+Due to the requirement of maintaining backwards compatibility with the legacy command, these two new commands are created to handle the preparation/submission of budget proposals. Future intention is to roll these two commands back into a single command to reduce code-duplication. Paramater arguments currently remain unchanged from the legacy command equivilent.
+
+##### `mnbudgetvote` Command #####
+This command now handles all cases for submitting MN votes on a budget proposal. Backwards compatibility with the legacy command(s) has been retained, with the exception of the `vote-alias` case due to a conflict in paramater type casting. A user running `mnbudget vote-alias` will be instructed to instead use the new `mnvote` command. Below is the full help documentation for this new command:
+
+```
+mnvote "local|many|alias" "votehash" "yes|no" ( "alias" )
+
+Vote on a budget proposal
+
+Arguments:
+1. "mode"      (string, required) The voting mode. 'local' for voting directly from a masternode, 'many' for voting with a MN controller and casting the same vote for each MN, 'alias' for voting with a MN controller and casting a vote for a single MN
+2. "votehash"  (string, required) The vote hash for the proposal
+3. "votecast"  (string, required) Your vote. 'yes' to vote for the proposal, 'no' to vote against
+4. "alias"     (string, required for 'alias' mode) The MN alias to cast a vote for.
+
+Result:
+{
+  "overall": "xxxx",      (string) The overall status message for the vote cast
+  "detail": [
+    {
+      "node": "xxxx",      (string) 'local' or the MN alias
+      "result": "xxxx",    (string) Either 'Success' or 'Failed'
+      "error": "xxxx",     (string) Error message, if vote failed
+    }
+    ,...
+  ]
+}
+
+Examples:
+> qyno-cli mnvote "local" "ed2f83cedee59a91406f5f47ec4d60bf5a7f9ee6293913c82976bd2d3a658041" "yes"
+> curl --user myusername --data-binary '{"jsonrpc": "1.0", "id":"curltest", "method": "mnvote", "params": ["local" "ed2f83cedee59a91406f5f47ec4d60bf5a7f9ee6293913c82976bd2d3a658041" "yes"] }' -H 'content-type: text/plain;' http://127.0.0.1:39742/
+```
+
+##### `getbudgetinfo` Command #####
+This command now combines the old `mnbudget show` and `mnbudget getinfo` commands to reduce code duplication while still maintaining backwards compatibility with the legacy commands. Given no parameters, it returns the full list of budget proposals (`mnbudget show`). A single optional parameter allows to return information on just that proposal (`mnbudget getinfo`). Below is the full help documentation:
+
+```
+getbudgetinfo ( "proposal" )
+
+Show current masternode budgets
+
+Arguments:
+1. "proposal"    (string, optional) Proposal name
+
+Result:
+[
+  {
+    "Name": "xxxx",               (string) Proposal Name
+    "URL": "xxxx",                (string) Proposal URL
+    "Hash": "xxxx",               (string) Proposal vote hash
+    "FeeHash": "xxxx",            (string) Proposal fee hash
+    "BlockStart": n,              (numeric) Proposal starting block
+    "BlockEnd": n,                (numeric) Proposal ending block
+    "TotalPaymentCount": n,       (numeric) Number of payments
+    "RemainingPaymentCount": n,   (numeric) Number of remaining payments
+    "PaymentAddress": "xxxx",     (string) Qyno address of payment
+    "Ratio": x.xxx,               (numeric) Ratio of yeas vs nays
+    "Yeas": n,                    (numeric) Number of yea votes
+    "Nays": n,                    (numeric) Number of nay votes
+    "Abstains": n,                (numeric) Number of abstains
+    "TotalPayment": xxx.xxx,      (numeric) Total payment amount
+    "MonthlyPayment": xxx.xxx,    (numeric) Monthly payment amount
+    "IsEstablished": true|false,  (boolean) Established (true) or (false)
+    "IsValid": true|false,        (boolean) Valid (true) or Invalid (false)
+    "IsValidReason": "xxxx",      (string) Error message, if any
+    "fValid": true|false,         (boolean) Valid (true) or Invalid (false)
+  }
+  ,...
+]
+
+Examples:
+> qyno-cli getbudgetprojection
+> curl --user myusername --data-binary '{"jsonrpc": "1.0", "id":"curltest", "method": "getbudgetprojection", "params": [] }' -H 'content-type: text/plain;' http://127.0.0.1:39742/
+```
+
+#### Masternode network protocol layer reporting ####
+The results from the `listmasternodes` and `getmasternodecount` commands now includes details about which network protocol layer is being used (IPv4, IPV6, or Tor).
 
 
-0.12.2.3 Change log
-===================
+2.3.1 Change log
+=================
 
-See detailed [change log](https://github.com/qyno/qynocoin/compare/v0.12.2.2...qyno:v0.12.2.3) below.
+Detailed release notes follow. This overview includes changes that affect
+behavior, not code moves, refactors and string updates. For convenience in locating
+the code changes and accompanying discussion, both the pull request and
+git merge commit are mentioned.
 
-### Backports:
-- [`068b20bc7`](https://github.com/qyno/qynocoin/commit/068b20bc7) Merge #8256: BUG: bitcoin-qt crash
-- [`f71ab1daf`](https://github.com/qyno/qynocoin/commit/f71ab1daf) Merge #11847: Fixes compatibility with boost 1.66 (#1836)
+### RPC and other APIs
+- #239 `e8b92f4` [RPC] Make 'masternode status' more verbose (Mrs-X)
+- #244 `eac60dd` [RPC] Standardize RPC Commands (Fuzzbawls)
 
-### PrivateSend:
-- [`fa5fc418a`](https://github.com/qyno/qynocoin/commit/fa5fc418a) Fix -liquidityprovider option (#1829)
-- [`d261575b4`](https://github.com/qyno/qynocoin/commit/d261575b4) Skip existing masternode conections on mixing (#1833)
-- [`21a10057d`](https://github.com/qyno/qynocoin/commit/21a10057d) Protect CKeyHolderStorage via mutex (#1834)
-- [`476888683`](https://github.com/qyno/qynocoin/commit/476888683) Avoid reference leakage in CKeyHolderStorage::AddKey (#1840)
+### P2P Protocol and Network Code
+- #248 `0d44ca2` [core] fix payment disagreements, reduce log-verbosity (Mrs-X)
 
-### InstantSend:
-- [`d6e2aa843`](https://github.com/qyno/qynocoin/commit/d6e2aa843) Swap iterations and fUseInstantSend parameters in ApproximateBestSubset (#1819)
-- [`c9bafe154`](https://github.com/qyno/qynocoin/commit/c9bafe154) Vote on IS only if it was accepted to mempool (#1826)
-
-### Other:
-- [`ada41c3af`](https://github.com/qyno/qynocoin/commit/ada41c3af) Fix crash on exit when -createwalletbackups=0 (#1810)
-- [`63e0e30e3`](https://github.com/qyno/qynocoin/commit/63e0e30e3) bump version to 0.12.2.3 (#1827)
+### Miscellaneous
+- #240 `1957445` [Debug Log] Increase verbosity of error-message (Mrs-X)
+- #241 #249 `b60118b` `7405e31` Nullpointer reference fixed (Mrs-X)
 
 Credits
 =======
 
 Thanks to everyone who directly contributed to this release:
+- Fuzzbawls
+- Mrs-X
+- amirabrams
 
-- Alexander Block
-- lodgepole
-- UdjinM6
-
-As well as Bitcoin Core Developers and everyone that submitted issues,
-reviewed pull requests or helped translating on
-[Transifex](https://www.transifex.com/projects/p/qyno/).
-
-
-Older releases
-==============
-
-Qyno was previously known as Darkcoin.
-
-Darkcoin tree 0.8.x was a fork of Litecoin tree 0.8, original name was XCoin
-which was first released on Jan/18/2014.
-
-Darkcoin tree 0.9.x was the open source implementation of masternodes based on
-the 0.8.x tree and was first released on Mar/13/2014.
-
-Darkcoin tree 0.10.x used to be the closed source implementation of Darksend
-which was released open source on Sep/25/2014.
-
-Qyno Core tree 0.11.x was a fork of Bitcoin Core tree 0.9,
-Darkcoin was rebranded to Qyno.
-
-Qyno Core tree 0.12.0.x was a fork of Bitcoin Core tree 0.10.
-
-Qyno Core tree 0.12.1.x was a fork of Bitcoin Core tree 0.12.
-
-These release are considered obsolete. Old release notes can be found here:
-
-- [v0.12.2.2](release-notes/qyno/release-notes-0.12.2.2.md) released Dec/17/2017
-- [v0.12.2](release-notes/qyno/release-notes-0.12.2.md) released Nov/08/2017
-- [v0.12.1](release-notes/qyno/release-notes-0.12.1.md) released Feb/06/2017
-- [v0.12.0](release-notes/qyno/release-notes-0.12.0.md) released Jun/15/2015
-- [v0.11.2](release-notes/qyno/release-notes-0.11.2.md) released Mar/04/2015
-- [v0.11.1](release-notes/qyno/release-notes-0.11.1.md) released Feb/10/2015
-- [v0.11.0](release-notes/qyno/release-notes-0.11.0.md) released Jan/15/2015
-- [v0.10.x](release-notes/qyno/release-notes-0.10.0.md) released Sep/25/2014
-- [v0.9.x](release-notes/qyno/release-notes-0.9.0.md) released Mar/13/2014
-
+As well as everyone that helped translating on [Transifex](https://www.transifex.com/projects/p/qyno-project-translations/).

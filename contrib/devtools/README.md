@@ -1,54 +1,24 @@
 Contents
-========
+===========
 This directory contains tools for developers working on this repository.
 
-clang-format.py
-===============
+check-doc.py
+============
 
-A script to format cpp source code according to [.clang-format](../../src/.clang-format). This should only be applied to new files or files which are currently not actively developed on. Also, git subtrees are not subject to formatting.
+Check if all command line args are documented. The return value indicates the
+number of undocumented args.
 
-fix-copyright-headers.py
-========================
-
-Every year newly updated files need to have its copyright headers updated to reflect the current year.
-If you run this script from the root folder it will automatically update the year on the copyright header for all
-source files if these have a git commit from the current year.
-
-For example a file changed in 2015 (with 2015 being the current year):
-
-```// Copyright (c) 2009-2013 The Bitcoin Core developers```
-
-would be changed to:
-
-```// Copyright (c) 2009-2015 The Bitcoin Core developers```
-
-git-subtree-check.sh
-====================
-
-Run this script from the root of the repository to verify that a subtree matches the contents of
-the commit it claims to have been updated to.
-
-To use, make sure that you have fetched the upstream repository branch in which the subtree is
-maintained:
-* for `src/secp256k1`: https://github.com/bitcoin/secp256k1.git (branch master)
-* for `src/leveldb`: https://github.com/bitcoin/leveldb.git (branch bitcoin-fork)
-* for `src/univalue`: https://github.com/bitcoin/univalue.git (branch master)
-
-Usage: `git-subtree-check.sh DIR COMMIT`
-
-`COMMIT` may be omitted, in which case `HEAD` is used.
-
-github-merge.sh
+github-merge.py
 ===============
 
 A small script to automate merging pull-requests securely and sign them with GPG.
 
 For example:
 
-  ./github-merge.sh bitcoin/bitcoin 3077
+  ./github-merge.py 3077
 
 (in any git repository) will help you merge pull request #3077 for the
-bitcoin/bitcoin repository.
+qyno/qynocoin repository.
 
 What it does:
 * Fetch master and the pull request.
@@ -61,27 +31,35 @@ check or whatever).
 
 This means that there are no potential race conditions (where a
 pullreq gets updated while you're reviewing it, but before you click
-merge), and when using GPG signatures, that even a compromised github
+merge), and when using GPG signatures, that even a compromised GitHub
 couldn't mess with the sources.
 
 Setup
 ---------
-Configuring the github-merge tool for the bitcoin repository is done in the following way:
+Configuring the github-merge tool for the Qyno repository is done in the following way:
 
-    git config githubmerge.repository bitcoin/bitcoin
+    git config githubmerge.repository qyno/qynocoin
     git config githubmerge.testcmd "make -j4 check" (adapt to whatever you want to use for testing)
     git config --global user.signingkey mykeyid (if you want to GPG sign)
 
 optimize-pngs.py
 ================
 
-A script to optimize png files in the bitcoin
+A script to optimize png files in the Qyno
 repository (requires pngcrush).
 
-security-check.py and test-security-check.py
-============================================
+fix-copyright-headers.py
+===========================
 
-Perform basic ELF security checks on a series of executables.
+Every year newly updated files need to have its copyright headers updated to reflect the current year.
+If you run this script from src/ it will automatically update the year on the copyright header for all
+.cpp and .h files if these have a git commit from the current year.
+
+For example a file changed in 2014 (with 2014 being the current year):
+```// Copyright (c) 2009-2013 The Bitcoin developers```
+
+would be changed to:
+```// Copyright (c) 2009-2014 The Bitcoin developers```
 
 symbol-check.py
 ===============
@@ -92,7 +70,7 @@ still compatible with the minimum supported Linux distribution versions.
 
 Example usage after a gitian build:
 
-    find ../gitian-builder/build -type f -executable | xargs python contrib/devtools/symbol-check.py 
+    find ../gitian-builder/build -type f -executable | xargs python contrib/devtools/symbol-check.py
 
 If only supported symbols are used the return value will be 0 and the output will be empty.
 

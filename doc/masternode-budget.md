@@ -1,58 +1,58 @@
-NOTE : 12.1 -- REWRITE
-
-
 Masternode Budget API
 =======================
 
 Qyno now supports full decentralized budgets that are paid directly from the blockchain via superblocks once per month.
 
 Budgets go through a series of stages before being paid:
- * prepare - create a special transaction that destroys coins in order to make a proposal
- * submit - propagate transaction to peers on network
- * voting - lobby for votes on your proposal
- * get enough votes - make it into the budget
- * finalization - at the end of each payment period, proposals are sorted then compiled into a finalized budget
- * finalized budget voting - masternodes that agree with the finalization will vote on that budget
- * payment - the winning finalized budget is paid
+* prepare - create a special transaction that destroys coins in order to make a proposal
+* submit - propagate transaction to peers on network
+* voting - lobby for votes on your proposal
+* get enough votes - make it into the budget
+* finalization - at the end of each payment period, proposals are sorted then compiled into a finalized budget
+* finalized budget voting - masternodes that agree with the finalization will vote on that budget
+* payment - the winning finalized budget is paid
 
 
-1. Prepare collateral transaction
---
+Prepare collateral transaction
+------------------------
 
-In this transaction we prepare collateral for "_cool-project_". This proposal will pay _1200_ QNO, _12_ times over the course of a year totaling _24000_ QNO.
+mnbudget prepare \<proposal-name\> \<url\> \<payment_count\> \<block_start\> \<qyno_address\> \<monthly_payment_qyno\> [use_ix(true|false)]
 
-**Warning: if you change any fields within this command, the collateral transaction will become invalid.**
+Example:
+```
+mnbudget prepare cool-project http://www.cool-project/one.json 12 100000 y6R9oN12KnB9zydzTLc3LikD9cCjjQzYG7 1200 true
+```
 
-Format: ```mngovernance prepare proposal-name url payment-count block-start qyno-address monthly-payment-qyno```
+Output: `464a0eb70ea91c94295214df48c47baa72b3876cfb658744aaf863c7b5bf1ff0` - This is the collateral hash, copy this output for the next step
 
-Example: ```mngovernance prepare cool-project http://www.cool-project/one.json 12 100000 y6R9oN12KnB9zydzTLc3LikD9cCjjQzYG7 1200 true```
+In this transaction we prepare collateral for "_cool-project_". This proposal will pay _1200_ Qyno, _12_ times over the course of a year totaling _24000_ Qyno.
 
-Output: ```464a0eb70ea91c94295214df48c47baa72b3876cfb658744aaf863c7b5bf1ff0```
+**Warning -- if you change any fields within this command, the collateral transaction will become invalid.**
 
-This is the collateral hash, copy this output for the next step.
+Submit proposal to network
+------------------------
 
-2 Submit proposal to network
---
+mnbudget submit \<proposal-name\> \<url\> \<payment_count\> \<block_start\> \<qyno_address\> \<monthly_payment_qyno\> \<collateral_hash\>
 
-Now we can submit our proposal to the network.
+Example:
+```
+mnbudget submit cool-project http://www.cool-project/one.json 12 100000 y6R9oN12KnB9zydzTLc3LikD9cCjjQzYG7 1200 464a0eb70ea91c94295214df48c47baa72b3876cfb658744aaf863c7b5bf1ff0
+```
 
-Format: ```mngovernance submit proposal-name url payment-count block-start qyno-address monthly-payment-qyno fee-tx```
+Output: `a2b29778ae82e45a973a94309ffa6aa2e2388b8f95b39ab3739f0078835f0491` - This is your proposal hash, which other nodes will use to vote on it
 
-Example: ```mngovernance submit cool-project http://www.cool-project/one.json 12 100000 y6R9oN12KnB9zydzTLc3LikD9cCjjQzYG7 1200 464a0eb70ea91c94295214df48c47baa72b3876cfb658744aaf863c7b5bf1ff0```
+Lobby for votes
+------------------------
 
-Output : ```a2b29778ae82e45a973a94309ffa6aa2e2388b8f95b39ab3739f0078835f0491```
+Double check your information:
 
-This is your proposal hash, which other nodes will use to vote on it.
+mnbudget getinfo \<proposal-name\>
 
-3. Lobby for votes
---
-
-Double check your information.
-
-Format: ```mngovernance getproposal proposal-hash```
-
-Example: ```mngovernance getproposal a2b29778ae82e45a973a94309ffa6aa2e2388b8f95b39ab3739f0078835f0491```
-￼
+Example:
+```
+mnbudget getinfo cool-project
+```
+Output:
 ```
 {
     "Name" : "cool-project",
@@ -77,41 +77,51 @@ Example: ```mngovernance getproposal a2b29778ae82e45a973a94309ffa6aa2e2388b8f95b
 
 If everything looks correct, you can ask for votes from other masternodes. To vote on a proposal, load a wallet with _masternode.conf_ file. You do not need to access your cold wallet to vote for proposals.
 
-Format: ```mngovernance vote proposal-hash [yes|no]```
+mnbudget vote \<proposal_hash\> [yes|no]
 
-Example: ```mngovernance vote a2b29778ae82e45a973a94309ffa6aa2e2388b8f95b39ab3739f0078835f0491 yes```
+Example:
+```
+mnbudget vote a2b29778ae82e45a973a94309ffa6aa2e2388b8f95b39ab3739f0078835f0491 yes
+```
 
-4.  Make it into the budget
---
+Output: `Voted successfully` - Your vote has been submitted and accepted.
 
-After you get enough votes, execute ```mngovernance projection``` to see if you made it into the budget. If you the budget was finalized at this moment which proposals would be in it. Note: Proposals must be active at least 1 day on the network and receive 10% of the masternode network in yes votes in order to qualify (E.g. if there is 3500 masternodes, you will need 350 yes votes.)
+Make it into the budget
+------------------------
 
-```mngovernance projection```:￼
+After you get enough votes, execute `mnbudget projection` to see if you made it into the budget. If you the budget was finalized at this moment which proposals would be in it. Note: Proposals must be active at least 1 day on the network and receive 10% of the masternode network in yes votes in order to qualify (E.g. if there is 2500 masternodes, you will need 250 yes votes.)
+
+Example:
+```
+mnbudget projection
+```
+
+Output:
 ```
 {
     "cool-project" : {
-        "Hash" : "a2b29778ae82e45a973a94309ffa6aa2e2388b8f95b39ab3739f0078835f0491",
-        "FeeHash" : "464a0eb70ea91c94295214df48c47baa72b3876cfb658744aaf863c7b5bf1ff0",
-        "URL" : "http://www.cool-project/one.json",
-        "BlockStart" : 100000,
-        "BlockEnd" : 100625,
-        "TotalPaymentCount" : 12,
-        "RemainingPaymentCount" : 12,
-        "PaymentAddress" : "y6R9oN12KnB9zydzTLc3LikD9cCjjQzYG7",
-        "Ratio" : 1.00000000,
-        "Yeas" : 33,
-        "Nays" : 0,
-        "Abstains" : 0,
-        "TotalPayment" : 14400.00000000,
-        "MonthlyPayment" : 1200.00000000,
-        "IsValid" : true,
-        "fValid" : true
-    }
+	    "Hash" : "a2b29778ae82e45a973a94309ffa6aa2e2388b8f95b39ab3739f0078835f0491",
+	    "FeeHash" : "464a0eb70ea91c94295214df48c47baa72b3876cfb658744aaf863c7b5bf1ff0",
+	    "URL" : "http://www.cool-project/one.json",
+	    "BlockStart" : 100000,
+	    "BlockEnd" : 100625,
+	    "TotalPaymentCount" : 12,
+	    "RemainingPaymentCount" : 12,
+	    "PaymentAddress" : "y6R9oN12KnB9zydzTLc3LikD9cCjjQzYG7",
+	    "Ratio" : 1.00000000,
+	    "Yeas" : 33,
+	    "Nays" : 0,
+	    "Abstains" : 0,
+	    "TotalPayment" : 14400.00000000,
+	    "MonthlyPayment" : 1200.00000000,
+	    "IsValid" : true,
+	    "fValid" : true
+	}
 }
 ```
 
-5. Finalized budget
---
+Finalized budget
+------------------------
 
 ```
 "main" : {
@@ -125,35 +135,29 @@ After you get enough votes, execute ```mngovernance projection``` to see if you 
     },
 ```
 
-6. Get paid
---
+Get paid
+------------------------
 
-When block ```1000000``` is reached you'll receive a payment for ```1200``` QNO to ```y6R9oN12KnB9zydzTLc3LikD9cCjjQzYG7```.
+When block `1000000` is reached you'll receive a payment for `1200` Qyno.
 
-7. Command list
---
 
-The following RPC commands are supported:
+RPC Commands
+------------------------
 
- - mngovernance "command"... ( "passphrase" )
-  - check              - Scan proposals and remove invalid from proposals list
-  - prepare            - Prepare proposal by signing and creating tx
-  - submit             - Submit proposal to network
-  - getproposalhash    - Get proposal hash(es) by proposal name
-  - getproposal        - Show proposal
-  - getvotes           - Show detailed votes list for proposal
-  - list               - List all proposals
-  - nextblock          - Get info about next superblock for budget system
-  - nextsuperblocksize - Get superblock size for a given blockheight
-  - projection         - Show the projection of which proposals will be paid the next cycle
-  - vote               - Vote on a proposal by single masternode (using qyno.conf setup)
-  - vote-many          - Vote on a proposal by all masternodes (using masternode.conf setup)
-  - vote-alias         - Vote on a proposal by alias
- - mnfinalbudget "command"... ( "passphrase" )
-  - vote-many   - Vote on a finalized budget
-  - vote        - Vote on a finalized budget
-  - show        - Show existing finalized budgets
-  - getvotes    - Get vote information for each finalized budget
-  - prepare     - Manually prepare a finalized budget
-  - submit      - Manually submit a finalized budget
+The following new RPC commands are supported:
+- mnbudget "command"... ( "passphrase" )
+ * prepare            - Prepare proposal for network by signing and creating tx
+ * submit             - Submit proposal for network
+ * vote-many          - Vote on a Qyno initiative
+ * vote-alias         - Vote on a Qyno initiative
+ * vote               - Vote on a Qyno initiative/budget
+ * getvotes           - Show current masternode budgets
+ * getinfo            - Show current masternode budgets
+ * show               - Show all budgets
+ * projection         - Show the projection of which proposals will be paid the next cycle
+ * check              - Scan proposals and remove invalid
 
+- mnfinalbudget "command"... ( "passphrase" )
+ * vote-many   - Vote on a finalized budget
+ * vote        - Vote on a finalized budget
+ * show        - Show existing finalized budgets

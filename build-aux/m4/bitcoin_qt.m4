@@ -110,6 +110,7 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
   CPPFLAGS="$QT_INCLUDES $CPPFLAGS"
   CXXFLAGS="$PIC_FLAGS $CXXFLAGS"
   if test x$bitcoin_qt_got_major_vers = x5; then
+    TEMP_CPPFLAGS="$TEMP_CPPFLAGS -DHAVE_QT5"
     _BITCOIN_QT_IS_STATIC
     if test x$bitcoin_cv_static_qt = xyes; then
       _BITCOIN_QT_FIND_STATIC_PLUGINS
@@ -203,21 +204,6 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
   BITCOIN_QT_PATH_PROGS([LRELEASE], [lrelease-qt${bitcoin_qt_got_major_vers} lrelease${bitcoin_qt_got_major_vers} lrelease], $qt_bin_path)
   BITCOIN_QT_PATH_PROGS([LUPDATE], [lupdate-qt${bitcoin_qt_got_major_vers} lupdate${bitcoin_qt_got_major_vers} lupdate],$qt_bin_path, yes)
 
-  BITCOIN_QT_CHECK([
-    AC_CACHE_CHECK([whether $RCC accepts --format-version option],
-                   [ac_cv_prog_rcc_accepts_format_version],
-                   [ac_cv_prog_rcc_accepts_format_version=no
-                    echo '<!DOCTYPE RCC><RCC version="1.0"/>' > conftest.qrc
-                    $RCC --format-version 1 conftest.qrc >/dev/null 2>&1 && ac_cv_prog_rcc_accepts_format_version=yes
-                    rm -f conftest.qrc])
-    if test "$ac_cv_prog_rcc_accepts_format_version" = yes; then
-      RCCFLAGS="--format-version 1"
-    else
-      RCCFLAGS=
-    fi
-    AC_SUBST(RCCFLAGS)
-  ])
-
   MOC_DEFS='-DHAVE_CONFIG_H -I$(srcdir)'
   case $host in
     *darwin*)
@@ -235,7 +221,7 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
 
 
   dnl enable qt support
-  AC_MSG_CHECKING(whether to build Qyno Core GUI)
+  AC_MSG_CHECKING(whether to build ]AC_PACKAGE_NAME[ GUI)
   BITCOIN_QT_CHECK([
     bitcoin_enable_qt=yes
     bitcoin_enable_qt_test=yes
@@ -357,6 +343,8 @@ AC_DEFUN([_BITCOIN_QT_FIND_STATIC_PLUGINS],[
        elif test x$TARGET_OS = xdarwin; then
          PKG_CHECK_MODULES([QTPRINT], [Qt5PrintSupport], [QT_LIBS="$QTPRINT_LIBS $QT_LIBS"])
        fi
+       else
+         QT_LIBS="-lQt5PlatformSupport $QT_LIBS"
      fi
      ])
   else
@@ -503,4 +491,3 @@ AC_DEFUN([_BITCOIN_QT_FIND_LIBS_WITHOUT_PKGCONFIG],[
   CXXFLAGS="$TEMP_CXXFLAGS"
   LIBS="$TEMP_LIBS"
 ])
-

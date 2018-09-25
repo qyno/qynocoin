@@ -1,7 +1,8 @@
-// Copyright (c) 2014-2015 The Bitcoin Core developers
-// Distributed under the MIT software license, see the accompanying
+// Copyright (c) 2014 The Bitcoin Core developers
+// Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "crypto/rfc6979_hmac_sha256.h"
 #include "crypto/ripemd160.h"
 #include "crypto/sha1.h"
 #include "crypto/sha256.h"
@@ -10,16 +11,13 @@
 #include "crypto/hmac_sha512.h"
 #include "random.h"
 #include "utilstrencodings.h"
-#include "test/test_qyno.h"
 
 #include <vector>
 
 #include <boost/assign/list_of.hpp>
 #include <boost/test/unit_test.hpp>
 
-#include <openssl/evp.h>
-
-BOOST_FIXTURE_TEST_SUITE(crypto_tests, BasicTestingSetup)
+BOOST_AUTO_TEST_SUITE(crypto_tests)
 
 template<typename Hasher, typename In, typename Out>
 void TestVector(const Hasher &h, const In &in, const Out &out) {
@@ -250,27 +248,38 @@ BOOST_AUTO_TEST_CASE(hmac_sha512_testvectors) {
                    "b6022cac3c4982b10d5eeb55c3e4de15134676fb6de0446065c97440fa8c6a58");
 }
 
-BOOST_AUTO_TEST_CASE(pbkdf2_hmac_sha512_test) {
-    // test vectors from
-    // https://github.com/trezor/trezor-crypto/blob/87c920a7e747f7ed40b6ae841327868ab914435b/tests.c#L1936-L1957
-    // https://stackoverflow.com/questions/15593184/pbkdf2-hmac-sha-512-test-vectors
-    uint8_t k[64], s[40];
+void TestRFC6979(const std::string& hexkey, const std::string& hexmsg, const std::vector<std::string>& hexout)
+{
+    std::vector<unsigned char> key = ParseHex(hexkey);
+    std::vector<unsigned char> msg = ParseHex(hexmsg);
+    RFC6979_HMAC_SHA256 rng(&key[0], key.size(), &msg[0], msg.size());
 
-    strcpy((char *)s, "salt");
-    PKCS5_PBKDF2_HMAC("password", 8, s, 4, 1, EVP_sha512(), 64, k);
-    BOOST_CHECK(HexStr(k, k + 64) == "867f70cf1ade02cff3752599a3a53dc4af34c7a669815ae5d513554e1c8cf252c02d470a285a0501bad999bfe943c08f050235d7d68b1da55e63f73b60a57fce");
+    for (unsigned int i = 0; i < hexout.size(); i++) {
+        std::vector<unsigned char> out = ParseHex(hexout[i]);
+        std::vector<unsigned char> gen;
+        gen.resize(out.size());
+        rng.Generate(&gen[0], gen.size());
+        BOOST_CHECK(out == gen);
+    }
+}
 
-    strcpy((char *)s, "salt");
-    PKCS5_PBKDF2_HMAC("password", 8, s, 4, 2, EVP_sha512(), 64, k);
-    BOOST_CHECK(HexStr(k, k + 64) == "e1d9c16aa681708a45f5c7c4e215ceb66e011a2e9f0040713f18aefdb866d53cf76cab2868a39b9f7840edce4fef5a82be67335c77a6068e04112754f27ccf4e");
+BOOST_AUTO_TEST_CASE(rfc6979_hmac_sha256)
+{
+    TestRFC6979(
+        "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00",
+        "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a",
+        boost::assign::list_of
+            ("4fe29525b2086809159acdf0506efb86b0ec932c7ba44256ab321e421e67e9fb")
+            ("2bf0fff1d3c378a22dc5de1d856522325c65b504491a0cbd01cb8f3aa67ffd4a")
+            ("f528b410cb541f77000d7afb6c5b53c5c471eab43e466d9ac5190c39c82fd82e"));
 
-    strcpy((char *)s, "salt");
-    PKCS5_PBKDF2_HMAC("password", 8, s, 4, 4096, EVP_sha512(), 64, k);
-    BOOST_CHECK(HexStr(k, k + 64) == "d197b1b33db0143e018b12f3d1d1479e6cdebdcc97c5c0f87f6902e072f457b5143f30602641b3d55cd335988cb36b84376060ecd532e039b742a239434af2d5");
-
-    strcpy((char *)s, "saltSALTsaltSALTsaltSALTsaltSALTsalt");
-    PKCS5_PBKDF2_HMAC("passwordPASSWORDpassword", 3*8, s, 9*4, 4096, EVP_sha512(), 64, k);
-    BOOST_CHECK(HexStr(k, k + 64) == "8c0511f4c6e597c6ac6315d8f0362e225f3c501495ba23b868c005174dc4ee71115b59f9e60cd9532fa33e0f75aefe30225c583a186cd82bd4daea9724a3d3b8");
+    TestRFC6979(
+        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        boost::assign::list_of
+            ("9c236c165b82ae0cd590659e100b6bab3036e7ba8b06749baf6981e16f1a2b95")
+            ("df471061625bc0ea14b682feee2c9c02f235da04204c1d62a1536c6e17aed7a9")
+            ("7597887cbd76321f32e30440679a22cf7f8d9d2eac390e581fea091ce202ba94"));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

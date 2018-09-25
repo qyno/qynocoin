@@ -2,8 +2,8 @@
 #
 # linearize-data.py: Construct a linear, no-fork version of the chain.
 #
-# Copyright (c) 2013-2014 The Bitcoin Core developers
-# Distributed under the MIT software license, see the accompanying
+# Copyright (c) 2013-2014 The Bitcoin developers
+# Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
 
@@ -12,12 +12,10 @@ import json
 import struct
 import re
 import os
-import os.path
 import base64
 import httplib
 import sys
 import hashlib
-import qyno_hash
 import datetime
 import time
 from collections import namedtuple
@@ -46,17 +44,15 @@ def wordreverse(in_buf):
 	return ''.join(out_words)
 
 def calc_hdr_hash(blk_hdr):
-	#hash1 = hashlib.sha256()
-	#hash1.update(blk_hdr)
-	#hash1_o = hash1.digest()
+	hash1 = hashlib.sha256()
+	hash1.update(blk_hdr)
+	hash1_o = hash1.digest()
 
-	#hash2 = hashlib.sha256()
-	#hash2.update(hash1_o)
-	#hash2_o = hash2.digest()
+	hash2 = hashlib.sha256()
+	hash2.update(hash1_o)
+	hash2_o = hash2.digest()
 
-	#return hash2_o
-        pow_hash = qyno_hash.getPoWHash(blk_hdr)
-        return pow_hash
+	return hash2_o
 
 def calc_hash_str(blk_hdr):
 	hash = calc_hdr_hash(blk_hdr)
@@ -119,20 +115,19 @@ class BlockDataCopier:
 			self.setFileTime = True
 		if settings['split_timestamp'] != 0:
 			self.timestampSplit = True
-		# Extents and cache for out-of-order blocks
+        # Extents and cache for out-of-order blocks
 		self.blockExtents = {}
 		self.outOfOrderData = {}
 		self.outOfOrderSize = 0 # running total size for items in outOfOrderData
 
 	def writeBlock(self, inhdr, blk_hdr, rawblock):
-		blockSizeOnDisk = len(inhdr) + len(blk_hdr) + len(rawblock)
-		if not self.fileOutput and ((self.outsz + blockSizeOnDisk) > self.maxOutSz):
+		if not self.fileOutput and ((self.outsz + self.inLen) > self.maxOutSz):
 			self.outF.close()
 			if self.setFileTime:
 				os.utime(outFname, (int(time.time()), highTS))
 			self.outF = None
 			self.outFname = None
-			self.outFn = self.outFn + 1
+			self.outFn = outFn + 1
 			self.outsz = 0
 
 		(blkDate, blkTS) = get_blk_dt(blk_hdr)
@@ -152,8 +147,8 @@ class BlockDataCopier:
 			if self.fileOutput:
 				outFname = self.settings['output_file']
 			else:
-				outFname = os.path.join(self.settings['output'], "blk%05d.dat" % self.outFn)
-			print("Output file " + outFname)
+				outFname = "%s/blk%05d.dat" % (self.settings['output'], outFn)
+			print("Output file" + outFname)
 			self.outF = open(outFname, "wb")
 
 		self.outF.write(inhdr)
@@ -170,7 +165,7 @@ class BlockDataCopier:
 					(self.blkCountIn, self.blkCountOut, len(self.blkindex), 100.0 * self.blkCountOut / len(self.blkindex)))
 
 	def inFileName(self, fn):
-		return os.path.join(self.settings['input'], "blk%05d.dat" % fn)
+		return "%s/blk%05d.dat" % (self.settings['input'], fn)
 
 	def fetchBlock(self, extent):
 		'''Fetch block contents from disk given extents'''
@@ -194,7 +189,7 @@ class BlockDataCopier:
 		while self.blkCountOut < len(self.blkindex):
 			if not self.inF:
 				fname = self.inFileName(self.inFn)
-				print("Input file " + fname)
+				print("Input file" + fname)
 				try:
 					self.inF = open(fname, "rb")
 				except IOError:
@@ -210,7 +205,7 @@ class BlockDataCopier:
 
 			inMagic = inhdr[:4]
 			if (inMagic != self.settings['netmagic']):
-				print("Invalid magic: " + inMagic.encode('hex'))
+				print("Invalid magic:" + inMagic)
 				return
 			inLenLE = inhdr[4:]
 			su = struct.unpack("<I", inLenLE)
@@ -269,9 +264,7 @@ if __name__ == '__main__':
 	f.close()
 
 	if 'netmagic' not in settings:
-		settings['netmagic'] = 'cee2caff'
-	if 'genesis' not in settings:
-		settings['genesis'] = '00000bafbc94add76cb75e2ec92894837288a481e5c005f6563d91623bf8bc2c'
+		settings['netmagic'] = 'f9beb4d9'
 	if 'input' not in settings:
 		settings['input'] = 'input'
 	if 'hashlist' not in settings:
@@ -298,8 +291,9 @@ if __name__ == '__main__':
 	blkindex = get_block_hashes(settings)
 	blkmap = mkblockmap(blkindex)
 
-	if not settings['genesis'] in blkmap:
-		print("Genesis block not found in hashlist")
+	if not "0000041e482b9b9691d98eefb48473405c0b8ec31b76df3797c74a78680ef818" in blkmap:
+		print("not found")
 	else:
 		BlockDataCopier(settings, blkindex, blkmap).run()
+
 

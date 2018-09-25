@@ -5,7 +5,6 @@ Upstart: qynod.conf
 OpenRC:  qynod.openrc
          qynod.openrcconf
 CentOS:  qynod.init
-OS X:    org.qyno.qynod.plist
 
 have been made available to assist packagers in creating node packages here.
 

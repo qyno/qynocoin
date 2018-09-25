@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#  qynod The Qyno Core server.
+#  qynod The Qyno core server.
 #
 #
 # chkconfig: 345 80 20
@@ -23,14 +23,14 @@ prog=qynod
 lockfile=${BITCOIND_LOCKFILE-/var/lock/subsys/qynod}
 
 # qynod defaults to /usr/bin/qynod, override with BITCOIND_BIN
-qynod=${BITCOIND_BIN-/usr/bin/qynod}
+bitcoind=${BITCOIND_BIN-/usr/bin/qynod}
 
 # qynod opts default to -disablewallet, override with BITCOIND_OPTS
-qynod_opts=${BITCOIND_OPTS--disablewallet}
+bitcoind_opts=${BITCOIND_OPTS}
 
 start() {
     echo -n $"Starting $prog: "
-    daemon $DAEMONOPTS $qynod $qynod_opts
+    daemon $DAEMONOPTS $bitcoind $bitcoind_opts
     RETVAL=$?
     echo
     [ $RETVAL -eq 0 ] && touch $lockfile

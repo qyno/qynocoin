@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 #
-# Use the raw transactions API to spend qynos received on particular addresses,
+# Use the raw transactions API to spend QNOs received on particular addresses,
 # and send any change back to that same address.
 #
 # Example usage:
 #  spendfrom.py  # Lists available funds
 #  spendfrom.py --from=ADDRESS --to=ADDRESS --amount=11.00
 #
-# Assumes it will talk to a qynod or Qyno-Qt running
+# Assumes it will talk to a qynod or qyno-Qt running
 # on localhost.
 #
 # Depends on jsonrpc
@@ -33,7 +33,7 @@ def check_json_precision():
         raise RuntimeError("JSON encode/decode loses precision")
 
 def determine_db_dir():
-    """Return the default location of the Qyno Core data directory"""
+    """Return the default location of the qyno data directory"""
     if platform.system() == "Darwin":
         return os.path.expanduser("~/Library/Application Support/Qyno/")
     elif platform.system() == "Windows":
@@ -63,11 +63,11 @@ def read_bitcoin_config(dbdir):
     return dict(config_parser.items("all"))
 
 def connect_JSON(config):
-    """Connect to a Qyno Core JSON-RPC server"""
+    """Connect to a qyno JSON-RPC server"""
     testnet = config.get('testnet', '0')
     testnet = (int(testnet) > 0)  # 0/1 in config file, convert to True/False
     if not 'rpcport' in config:
-        config['rpcport'] = 37113 if testnet else 37111
+        config['rpcport'] = 39744 if testnet else 39742
     connect = "http://%s:%s@127.0.0.1:%s"%(config['rpcuser'], config['rpcpassword'], config['rpcport'])
     try:
         result = ServiceProxy(connect)
@@ -221,9 +221,9 @@ def main():
 
     parser = optparse.OptionParser(usage="%prog [options]")
     parser.add_option("--from", dest="fromaddresses", default=None,
-                      help="addresses to get qynos from")
+                      help="addresses to get QNOs from")
     parser.add_option("--to", dest="to", default=None,
-                      help="address to get send qynos to")
+                      help="address to get send QNOs to")
     parser.add_option("--amount", dest="amount", default=None,
                       help="amount to send")
     parser.add_option("--fee", dest="fee", default="0.0",

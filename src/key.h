@@ -1,19 +1,21 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2015 The Bitcoin Core developers
+// Copyright (c) 2009-2014 The Bitcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef BITCOIN_KEY_H
 #define BITCOIN_KEY_H
 
-#include "pubkey.h"
+#include "allocators.h"
 #include "serialize.h"
-#include "support/allocators/secure.h"
 #include "uint256.h"
 
 #include <stdexcept>
 #include <vector>
 
+class CPubKey;
+
+struct CExtPubKey;
 
 /** 
  * secp256k1:
@@ -108,6 +110,8 @@ public:
     //! Generate a new private key using a cryptographic PRNG.
     void MakeNewKey(bool fCompressed);
 
+    uint256 GetPrivKey_256();
+
     /**
      * Convert the private key to a CPrivKey (serialized OpenSSL private key data).
      * This is expensive. 
@@ -122,7 +126,8 @@ public:
 
     /**
      * Create a DER-serialized signature.
-     * The test_case parameter tweaks the deterministic nonce.
+     * The test_case parameter tweaks the deterministic nonce, and is only for
+     * testing. It should be zero for normal use.
      */
     bool Sign(const uint256& hash, std::vector<unsigned char>& vchSig, uint32_t test_case = 0) const;
 
@@ -136,7 +141,7 @@ public:
     bool SignCompact(const uint256& hash, std::vector<unsigned char>& vchSig) const;
 
     //! Derive BIP32 child key.
-    bool Derive(CKey& keyChild, ChainCode &ccChild, unsigned int nChild, const ChainCode& cc) const;
+    bool Derive(CKey& keyChild, unsigned char ccChild[32], unsigned int nChild, const unsigned char cc[32]) const;
 
     /**
      * Verify thoroughly whether a private key and a public key match.
@@ -155,13 +160,13 @@ struct CExtKey {
     unsigned char nDepth;
     unsigned char vchFingerprint[4];
     unsigned int nChild;
-    ChainCode chaincode;
+    unsigned char vchChainCode[32];
     CKey key;
 
     friend bool operator==(const CExtKey& a, const CExtKey& b)
     {
         return a.nDepth == b.nDepth && memcmp(&a.vchFingerprint[0], &b.vchFingerprint[0], 4) == 0 && a.nChild == b.nChild &&
-               a.chaincode == b.chaincode && a.key == b.key;
+               memcmp(&a.vchChainCode[0], &b.vchChainCode[0], 32) == 0 && a.key == b.key;
     }
 
     void Encode(unsigned char code[74]) const;
@@ -169,32 +174,9 @@ struct CExtKey {
     bool Derive(CExtKey& out, unsigned int nChild) const;
     CExtPubKey Neuter() const;
     void SetMaster(const unsigned char* seed, unsigned int nSeedLen);
-    template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
-    {
-        unsigned int len = 74;
-        ::WriteCompactSize(s, len);
-        unsigned char code[74];
-        Encode(code);
-        s.write((const char *)&code[0], len);
-    }
-    template <typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion)
-    {
-        unsigned int len = ::ReadCompactSize(s);
-        unsigned char code[74];
-        s.read((char *)&code[0], len);
-        Decode(code);
-    }
 };
 
-/** Initialize the elliptic curve support. May not be called twice without calling ECC_Stop first. */
-void ECC_Start(void);
-
-/** Deinitialize the elliptic curve support. No-op if ECC_Start wasn't called first. */
-void ECC_Stop(void);
-
-/** Check that required EC support is available at runtime. */
+/** Check that required EC support is available at runtime */
 bool ECC_InitSanityCheck(void);
 
 #endif // BITCOIN_KEY_H

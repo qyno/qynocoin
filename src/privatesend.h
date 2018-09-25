@@ -1,4 +1,5 @@
-// Copyright (c) 2014-2017 The Dash Core developers
+// Copyright (c) 2014-2015 The Dash developers
+// Copyright (c) 2015-2017 The PIVX developers
 // Copyright (c) 2017-2018 The Qyno Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -6,180 +7,211 @@
 #ifndef PRIVATESEND_H
 #define PRIVATESEND_H
 
-#include "chain.h"
-#include "chainparams.h"
-#include "primitives/transaction.h"
-#include "pubkey.h"
+#include "main.h"
+#include "masternode-payments.h"
+#include "masternode-sync.h"
+#include "masternodeman.h"
+#include "privatesend-relay.h"
 #include "sync.h"
-#include "tinyformat.h"
-#include "timedata.h"
 
-class CPrivateSend;
-class CConnman;
+class CTxIn;
+class CPrivatesendPool;
+class CPrivateSendSigner;
+class CMasterNodeVote;
+class CBitcoinAddress;
+class CPrivatesendQueue;
+class CPrivatesendBroadcastTx;
+class CActiveMasternode;
 
-// timeouts
-static const int PRIVATESEND_AUTO_TIMEOUT_MIN       = 5;
-static const int PRIVATESEND_AUTO_TIMEOUT_MAX       = 15;
-static const int PRIVATESEND_QUEUE_TIMEOUT          = 30;
-static const int PRIVATESEND_SIGNING_TIMEOUT        = 15;
-
-//! minimum peer version accepted by mixing pool
-static const int MIN_PRIVATESEND_PEER_PROTO_VERSION = 70210;
-
-static const CAmount PRIVATESEND_ENTRY_MAX_SIZE     = 9;
-
-// pool responses
-enum PoolMessage {
-    ERR_ALREADY_HAVE,
-    ERR_DENOM,
-    ERR_ENTRIES_FULL,
-    ERR_EXISTING_TX,
-    ERR_FEES,
-    ERR_INVALID_COLLATERAL,
-    ERR_INVALID_INPUT,
-    ERR_INVALID_SCRIPT,
-    ERR_INVALID_TX,
-    ERR_MAXIMUM,
-    ERR_MN_LIST,
-    ERR_MODE,
-    ERR_NON_STANDARD_PUBKEY,
-    ERR_NOT_A_MN, // not used
-    ERR_QUEUE_FULL,
-    ERR_RECENT,
-    ERR_SESSION,
-    ERR_MISSING_TX,
-    ERR_VERSION,
-    MSG_NOERR,
-    MSG_SUCCESS,
-    MSG_ENTRIES_ADDED,
-    MSG_POOL_MIN = ERR_ALREADY_HAVE,
-    MSG_POOL_MAX = MSG_ENTRIES_ADDED
-};
-
-// pool states
-enum PoolState {
-    POOL_STATE_IDLE,
-    POOL_STATE_QUEUE,
-    POOL_STATE_ACCEPTING_ENTRIES,
-    POOL_STATE_SIGNING,
-    POOL_STATE_ERROR,
-    POOL_STATE_SUCCESS,
-    POOL_STATE_MIN = POOL_STATE_IDLE,
-    POOL_STATE_MAX = POOL_STATE_SUCCESS
-};
+// pool states for mixing
+#define POOL_STATUS_UNKNOWN 0              // waiting for update
+#define POOL_STATUS_IDLE 1                 // waiting for update
+#define POOL_STATUS_QUEUE 2                // waiting in a queue
+#define POOL_STATUS_ACCEPTING_ENTRIES 3    // accepting entries
+#define POOL_STATUS_FINALIZE_TRANSACTION 4 // master node will broadcast what it accepted
+#define POOL_STATUS_SIGNING 5              // check inputs/outputs, sign final tx
+#define POOL_STATUS_TRANSMISSION 6         // transmit transaction
+#define POOL_STATUS_ERROR 7                // error
+#define POOL_STATUS_SUCCESS 8              // success
 
 // status update message constants
-enum PoolStatusUpdate {
-    STATUS_REJECTED,
-    STATUS_ACCEPTED
-};
+#define MASTERNODE_ACCEPTED 1
+#define MASTERNODE_REJECTED 0
+#define MASTERNODE_RESET -1
 
-/** Holds an mixing input
+#define PRIVATESEND_QUEUE_TIMEOUT 30
+#define PRIVATESEND_SIGNING_TIMEOUT 15
+
+// used for anonymous relaying of inputs/outputs/sigs
+#define PRIVATESEND_RELAY_IN 1
+#define PRIVATESEND_RELAY_OUT 2
+#define PRIVATESEND_RELAY_SIG 3
+
+static const CAmount PRIVATESEND_COLLATERAL = (10 * COIN);
+static const CAmount PRIVATESEND_POOL_MAX = (99999.99 * COIN);
+
+extern CPrivatesendPool privateSendPool;
+extern CPrivateSendSigner privateSendSigner;
+extern std::vector<CPrivatesendQueue> vecPrivatesendQueue;
+extern std::string strMasterNodePrivKey;
+extern map<uint256, CPrivatesendBroadcastTx> mapPrivatesendBroadcastTxes;
+extern CActiveMasternode activeMasternode;
+
+/** Holds an Privatesend input
  */
 class CTxDSIn : public CTxIn
 {
 public:
-    // memory only
-    CScript prevPubKey;
-    bool fHasSig; // flag to indicate if signed
+    bool fHasSig;   // flag to indicate if signed
     int nSentTimes; //times we've sent this anonymously
 
-    CTxDSIn(const CTxIn& txin, const CScript& script) :
-        CTxIn(txin),
-        prevPubKey(script),
-        fHasSig(false),
-        nSentTimes(0)
-        {}
-
-    CTxDSIn() :
-        CTxIn(),
-        prevPubKey(),
-        fHasSig(false),
-        nSentTimes(0)
-        {}
+    CTxDSIn(const CTxIn& in)
+    {
+        prevout = in.prevout;
+        scriptSig = in.scriptSig;
+        prevPubKey = in.prevPubKey;
+        nSequence = in.nSequence;
+        nSentTimes = 0;
+        fHasSig = false;
+    }
 };
 
-// A clients transaction in the mixing pool
-class CDarkSendEntry
+/** Holds an Privatesend output
+ */
+class CTxDSOut : public CTxOut
 {
 public:
-    std::vector<CTxDSIn> vecTxDSIn;
-    std::vector<CTxOut> vecTxOut;
-    CTransaction txCollateral;
-    // memory only
-    CService addr;
+    int nSentTimes; //times we've sent this anonymously
 
-    CDarkSendEntry() :
-        vecTxDSIn(std::vector<CTxDSIn>()),
-        vecTxOut(std::vector<CTxOut>()),
-        txCollateral(CTransaction()),
-        addr(CService())
-        {}
+    CTxDSOut(const CTxOut& out)
+    {
+        nValue = out.nValue;
+        nRounds = out.nRounds;
+        scriptPubKey = out.scriptPubKey;
+        nSentTimes = 0;
+    }
+};
 
-    CDarkSendEntry(const std::vector<CTxDSIn>& vecTxDSIn, const std::vector<CTxOut>& vecTxOut, const CTransaction& txCollateral) :
-        vecTxDSIn(vecTxDSIn),
-        vecTxOut(vecTxOut),
-        txCollateral(txCollateral),
-        addr(CService())
-        {}
+// A clients transaction in the privatesend pool
+class CPrivateSendEntry
+{
+public:
+    bool isSet;
+    std::vector<CTxDSIn> sev;
+    std::vector<CTxDSOut> vout;
+    CAmount amount;
+    CTransaction collateral;
+    CTransaction txSupporting;
+    int64_t addedTime; // time in UTC milliseconds
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(vecTxDSIn);
-        READWRITE(txCollateral);
-        READWRITE(vecTxOut);
+    CPrivateSendEntry()
+    {
+        isSet = false;
+        collateral = CTransaction();
+        amount = 0;
     }
 
-    bool AddScriptSig(const CTxIn& txin);
+    /// Add entries to use for Privatesend
+    bool Add(const std::vector<CTxIn> vinIn, int64_t amountIn, const CTransaction collateralIn, const std::vector<CTxOut> voutIn)
+    {
+        if (isSet) {
+            return false;
+        }
+
+        BOOST_FOREACH (const CTxIn& in, vinIn)
+            sev.push_back(in);
+
+        BOOST_FOREACH (const CTxOut& out, voutIn)
+            vout.push_back(out);
+
+        amount = amountIn;
+        collateral = collateralIn;
+        isSet = true;
+        addedTime = GetTime();
+
+        return true;
+    }
+
+    bool AddSig(const CTxIn& vin)
+    {
+        BOOST_FOREACH (CTxDSIn& s, sev) {
+            if (s.prevout == vin.prevout && s.nSequence == vin.nSequence) {
+                if (s.fHasSig) {
+                    return false;
+                }
+                s.scriptSig = vin.scriptSig;
+                s.prevPubKey = vin.prevPubKey;
+                s.fHasSig = true;
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool IsExpired()
+    {
+        return (GetTime() - addedTime) > PRIVATESEND_QUEUE_TIMEOUT; // 120 seconds
+    }
 };
 
 
 /**
- * A currently inprogress mixing merge and denomination information
+ * A currently inprogress Privatesend merge and denomination information
  */
-class CDarksendQueue
+class CPrivatesendQueue
 {
 public:
-    int nDenom;
     CTxIn vin;
-    int64_t nTime;
-    bool fReady; //ready for submit
+    int64_t time;
+    int nDenom;
+    bool ready; //ready for submit
     std::vector<unsigned char> vchSig;
-    // memory only
-    bool fTried;
 
-    CDarksendQueue() :
-        nDenom(0),
-        vin(CTxIn()),
-        nTime(0),
-        fReady(false),
-        vchSig(std::vector<unsigned char>()),
-        fTried(false)
-        {}
-
-    CDarksendQueue(int nDenom, COutPoint outpoint, int64_t nTime, bool fReady) :
-        nDenom(nDenom),
-        vin(CTxIn(outpoint)),
-        nTime(nTime),
-        fReady(fReady),
-        vchSig(std::vector<unsigned char>()),
-        fTried(false)
-        {}
+    CPrivatesendQueue()
+    {
+        nDenom = 0;
+        vin = CTxIn();
+        time = 0;
+        vchSig.clear();
+        ready = false;
+    }
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
         READWRITE(nDenom);
         READWRITE(vin);
-        READWRITE(nTime);
-        READWRITE(fReady);
+        READWRITE(time);
+        READWRITE(ready);
         READWRITE(vchSig);
     }
 
-    /** Sign this mixing transaction
+    bool GetAddress(CService& addr)
+    {
+        CMasternode* pmn = mnodeman.Find(vin);
+        if (pmn != NULL) {
+            addr = pmn->addr;
+            return true;
+        }
+        return false;
+    }
+
+    /// Get the protocol version
+    bool GetProtocolVersion(int& protocolVersion)
+    {
+        CMasternode* pmn = mnodeman.Find(vin);
+        if (pmn != NULL) {
+            protocolVersion = pmn->protocolVersion;
+            return true;
+        }
+        return false;
+    }
+
+    /** Sign this Privatesend transaction
      *  \return true if all conditions are met:
      *     1) we have an active Masternode,
      *     2) we have a valid Masternode private key,
@@ -187,176 +219,299 @@ public:
      *     4) we verified the message successfully
      */
     bool Sign();
+
+    bool Relay();
+
+    /// Is this Privatesend expired?
+    bool IsExpired()
+    {
+        return (GetTime() - time) > PRIVATESEND_QUEUE_TIMEOUT; // 120 seconds
+    }
+
     /// Check if we have a valid Masternode address
-    bool CheckSignature(const CPubKey& pubKeyMasternode);
-
-    bool Relay(CConnman &connman);
-
-    /// Is this queue expired?
-    bool IsExpired() { return GetAdjustedTime() - nTime > PRIVATESEND_QUEUE_TIMEOUT; }
-
-    std::string ToString()
-    {
-        return strprintf("nDenom=%d, nTime=%lld, fReady=%s, fTried=%s, masternode=%s",
-                        nDenom, nTime, fReady ? "true" : "false", fTried ? "true" : "false", vin.prevout.ToStringShort());
-    }
-
-    friend bool operator==(const CDarksendQueue& a, const CDarksendQueue& b)
-    {
-        return a.nDenom == b.nDenom && a.vin.prevout == b.vin.prevout && a.nTime == b.nTime && a.fReady == b.fReady;
-    }
+    bool CheckSignature();
 };
 
-/** Helper class to store mixing transaction (tx) information.
+/** Helper class to store Privatesend transaction (tx) information.
  */
-class CDarksendBroadcastTx
+class CPrivatesendBroadcastTx
 {
-private:
-    // memory only
-    // when corresponding tx is 0-confirmed or conflicted, nConfirmedHeight is -1
-    int nConfirmedHeight;
-
 public:
     CTransaction tx;
     CTxIn vin;
-    std::vector<unsigned char> vchSig;
+    vector<unsigned char> vchSig;
     int64_t sigTime;
-
-    CDarksendBroadcastTx() :
-        nConfirmedHeight(-1),
-        tx(),
-        vin(),
-        vchSig(),
-        sigTime(0)
-        {}
-
-    CDarksendBroadcastTx(CTransaction tx, COutPoint outpoint, int64_t sigTime) :
-        nConfirmedHeight(-1),
-        tx(tx),
-        vin(CTxIn(outpoint)),
-        vchSig(),
-        sigTime(sigTime)
-        {}
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(tx);
-        READWRITE(vin);
-        READWRITE(vchSig);
-        READWRITE(sigTime);
-    }
-
-    friend bool operator==(const CDarksendBroadcastTx& a, const CDarksendBroadcastTx& b)
-    {
-        return a.tx == b.tx;
-    }
-    friend bool operator!=(const CDarksendBroadcastTx& a, const CDarksendBroadcastTx& b)
-    {
-        return !(a == b);
-    }
-    explicit operator bool() const
-    {
-        return *this != CDarksendBroadcastTx();
-    }
-
-    bool Sign();
-    bool CheckSignature(const CPubKey& pubKeyMasternode);
-
-    void SetConfirmedHeight(int nConfirmedHeightIn) { nConfirmedHeight = nConfirmedHeightIn; }
-    bool IsExpired(int nHeight);
 };
 
-// base class
-class CPrivateSendBase
+/** Helper object for signing and checking signatures
+ */
+class CPrivateSendSigner
 {
-protected:
-    mutable CCriticalSection cs_darksend;
-
-    // The current mixing sessions in progress on the network
-    std::vector<CDarksendQueue> vecDarksendQueue;
-
-    std::vector<CDarkSendEntry> vecEntries; // Masternode/clients entries
-
-    PoolState nState; // should be one of the POOL_STATE_XXX values
-    int64_t nTimeLastSuccessfulStep; // the time when last successful mixing step was performed, in UTC milliseconds
-
-    int nSessionID; // 0 if no mixing session is active
-
-    CMutableTransaction finalMutableTransaction; // the finalized transaction ready for signing
-
-    void SetNull();
-    void CheckQueue();
-
 public:
-    int nSessionDenom; //Users must submit an denom matching this
-
-    CPrivateSendBase() { SetNull(); }
-
-    int GetQueueSize() const { return vecDarksendQueue.size(); }
-    int GetState() const { return nState; }
-    std::string GetStateString() const;
-
-    int GetEntriesCount() const { return vecEntries.size(); }
+    /// Is the inputs associated with this public key? (and there is 10000 QNO - checking if valid masternode)
+    bool IsVinAssociatedWithPubkey(CTxIn& vin, CPubKey& pubkey);
+    /// Set the private/public key values, returns true if successful
+    bool GetKeysFromSecret(std::string strSecret, CKey& keyRet, CPubKey& pubkeyRet);
+    /// Set the private/public key values, returns true if successful
+    bool SetKey(std::string strSecret, std::string& errorMessage, CKey& key, CPubKey& pubkey);
+    /// Sign the message, returns true if successful
+    bool SignMessage(std::string strMessage, std::string& errorMessage, std::vector<unsigned char>& vchSig, CKey key);
+    /// Verify the message, returns true if succcessful
+    bool VerifyMessage(CPubKey pubkey, std::vector<unsigned char>& vchSig, std::string strMessage, std::string& errorMessage);
 };
 
-// helper class
-class CPrivateSend
+/** Used to keep track of current status of Privatesend pool
+ */
+class CPrivatesendPool
 {
 private:
-    // make constructor, destructor and copying not available
-    CPrivateSend() {}
-    ~CPrivateSend() {}
-    CPrivateSend(CPrivateSend const&) = delete;
-    CPrivateSend& operator= (CPrivateSend const&) = delete;
+    mutable CCriticalSection cs_privatesend;
 
-    static const CAmount COLLATERAL = 0.001 * COIN;
+    std::vector<CPrivateSendEntry> entries; // Masternode/clients entries
+    CMutableTransaction finalTransaction;   // the finalized transaction ready for signing
 
-    // static members
-    static std::vector<CAmount> vecStandardDenominations;
-    static std::map<uint256, CDarksendBroadcastTx> mapDSTX;
+    int64_t lastTimeChanged; // last time the 'state' changed, in UTC milliseconds
 
-    static CCriticalSection cs_mapdstx;
+    unsigned int state; // should be one of the POOL_STATUS_XXX values
+    unsigned int entriesCount;
+    unsigned int lastEntryAccepted;
+    unsigned int countEntriesAccepted;
 
-    static void CheckDSTXes(int nHeight);
+    std::vector<CTxIn> lockedCoins;
+
+    std::string lastMessage;
+    bool unitTest;
+
+    int sessionID;
+
+    int sessionUsers;            //N Users have said they'll join
+    bool sessionFoundMasternode; //If we've found a compatible Masternode
+    std::vector<CTransaction> vecSessionCollateral;
+
+    int cachedLastSuccess;
+
+    int minBlockSpacing; //required blocks between mixes
+    CMutableTransaction txCollateral;
+
+    int64_t lastNewBlock;
+
+    //debugging data
+    std::string strAutoDenomResult;
 
 public:
-    static void InitStandardDenominations();
-    static std::vector<CAmount> GetStandardDenominations() { return vecStandardDenominations; }
-    static CAmount GetSmallestDenomination() { return vecStandardDenominations.back(); }
+    enum messages {
+        ERR_ALREADY_HAVE,
+        ERR_DENOM,
+        ERR_ENTRIES_FULL,
+        ERR_EXISTING_TX,
+        ERR_FEES,
+        ERR_INVALID_COLLATERAL,
+        ERR_INVALID_INPUT,
+        ERR_INVALID_SCRIPT,
+        ERR_INVALID_TX,
+        ERR_MAXIMUM,
+        ERR_MN_LIST,
+        ERR_MODE,
+        ERR_NON_STANDARD_PUBKEY,
+        ERR_NOT_A_MN,
+        ERR_QUEUE_FULL,
+        ERR_RECENT,
+        ERR_SESSION,
+        ERR_MISSING_TX,
+        ERR_VERSION,
+        MSG_NOERR,
+        MSG_SUCCESS,
+        MSG_ENTRIES_ADDED
+    };
 
-    /// Get the denominations for a specific amount of qyno.
-    static int GetDenominationsByAmounts(const std::vector<CAmount>& vecAmount);
+    // where collateral should be made out to
+    CScript collateralPubKey;
 
-    static bool IsDenominatedAmount(CAmount nInputAmount);
+    CMasternode* pSubmittedToMasternode;
+    int sessionDenom;    //Users must submit an denom matching this
+    int cachedNumBlocks; //used for the overview screen
 
-    /// Get the denominations for a list of outputs (returns a bitshifted integer)
-    static int GetDenominations(const std::vector<CTxOut>& vecTxOut, bool fSingleRandomDenom = false);
-    static std::string GetDenominationsToString(int nDenom);
-    static bool GetDenominationsBits(int nDenom, std::vector<int> &vecBitsRet);
+    CPrivatesendPool()
+    {
+        /* Privatesend uses collateral addresses to trust parties entering the pool
+            to behave themselves. If they don't it takes their money. */
 
-    static std::string GetMessageByID(PoolMessage nMessageID);
+        cachedLastSuccess = 0;
+        cachedNumBlocks = std::numeric_limits<int>::max();
+        unitTest = false;
+        txCollateral = CMutableTransaction();
+        minBlockSpacing = 0;
+        lastNewBlock = 0;
+
+        SetNull();
+    }
+
+    /** Process a Privatesend message using the Privatesend protocol
+     * \param pfrom
+     * \param strCommand lower case command string; valid values are:
+     *        Command  | Description
+     *        -------- | -----------------
+     *        dsa      | Privatesend Acceptable
+     *        dsc      | Privatesend Complete
+     *        dsf      | Privatesend Final tx
+     *        dsi      | Privatesend vIn
+     *        dsq      | Privatesend Queue
+     *        dss      | Privatesend Signal Final Tx
+     *        dssu     | Privatesend status update
+     *        dssub    | Privatesend Subscribe To
+     * \param vRecv
+     */
+    void ProcessMessagePrivatesend(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
+
+    void InitCollateralAddress()
+    {
+        SetCollateralAddress(Params().PrivatesendPoolDummyAddress());
+    }
+
+    void SetMinBlockSpacing(int minBlockSpacingIn)
+    {
+        minBlockSpacing = minBlockSpacingIn;
+    }
+
+    bool SetCollateralAddress(std::string strAddress);
+    void Reset();
+    void SetNull();
+
+    void UnlockCoins();
+
+    bool IsNull() const
+    {
+        return state == POOL_STATUS_ACCEPTING_ENTRIES && entries.empty();
+    }
+
+    int GetState() const
+    {
+        return state;
+    }
+
+    std::string GetStatus();
+
+    int GetEntriesCount() const
+    {
+        return entries.size();
+    }
+
+    /// Get the time the last entry was accepted (time in UTC milliseconds)
+    int GetLastEntryAccepted() const
+    {
+        return lastEntryAccepted;
+    }
+
+    /// Get the count of the accepted entries
+    int GetCountEntriesAccepted() const
+    {
+        return countEntriesAccepted;
+    }
+
+    // Set the 'state' value, with some logging and capturing when the state changed
+    void UpdateState(unsigned int newState)
+    {
+        if (fMasterNode && (newState == POOL_STATUS_ERROR || newState == POOL_STATUS_SUCCESS)) {
+            LogPrint("privatesend", "CPrivatesendPool::UpdateState() - Can't set state to ERROR or SUCCESS as a Masternode. \n");
+            return;
+        }
+
+        LogPrintf("CPrivatesendPool::UpdateState() == %d | %d \n", state, newState);
+        if (state != newState) {
+            lastTimeChanged = GetTimeMillis();
+            if (fMasterNode) {
+                RelayStatus(privateSendPool.sessionID, privateSendPool.GetState(), privateSendPool.GetEntriesCount(), MASTERNODE_RESET);
+            }
+        }
+        state = newState;
+    }
 
     /// Get the maximum number of transactions for the pool
-    static int GetMaxPoolTransactions() { return Params().PoolMaxTransactions(); }
+    int GetMaxPoolTransactions()
+    {
+        return Params().PoolMaxTransactions();
+    }
 
-    static CAmount GetMaxPoolAmount() { return vecStandardDenominations.empty() ? 0 : PRIVATESEND_ENTRY_MAX_SIZE * vecStandardDenominations.front(); }
+    /// Do we have enough users to take entries?
+    bool IsSessionReady()
+    {
+        return sessionUsers >= GetMaxPoolTransactions();
+    }
 
+    /// Are these outputs compatible with other client in the pool?
+    bool IsCompatibleWithEntries(std::vector<CTxOut>& vout);
+
+    /// Is this amount compatible with other client in the pool?
+    bool IsCompatibleWithSession(CAmount nAmount, CTransaction txCollateral, int& errorID);
+
+    /// Passively run Privatesend in the background according to the configuration in settings (only for QT)
+    bool DoAutomaticDenominating(bool fDryRun = false);
+    bool PreparePrivatesendDenominate();
+
+    /// Check for process in Privatesend
+    void Check();
+    void CheckFinalTransaction();
+    /// Charge fees to bad actors (Charge clients a fee if they're abusive)
+    void ChargeFees();
+    /// Rarely charge fees to pay miners
+    void ChargeRandomFees();
+    void CheckTimeout();
+    void CheckForCompleteQueue();
+    /// Check to make sure a signature matches an input in the pool
+    bool SignatureValid(const CScript& newSig, const CTxIn& newVin);
     /// If the collateral is valid given by a client
-    static bool IsCollateralValid(const CTransaction& txCollateral);
-    static CAmount GetCollateralAmount() { return COLLATERAL; }
-    static CAmount GetMaxCollateralAmount() { return COLLATERAL*4; }
+    bool IsCollateralValid(const CTransaction& txCollateral);
+    /// Add a clients entry to the pool
+    bool AddEntry(const std::vector<CTxIn>& newInput, const CAmount& nAmount, const CTransaction& txCollateral, const std::vector<CTxOut>& newOutput, int& errorID);
+    /// Add signature to a vin
+    bool AddScriptSig(const CTxIn& newVin);
+    /// Check that all inputs are signed. (Are all inputs signed?)
+    bool SignaturesComplete();
+    /// As a client, send a transaction to a Masternode to start the denomination process
+    void SendPrivatesendDenominate(std::vector<CTxIn>& vin, std::vector<CTxOut>& vout, CAmount amount);
+    /// Get Masternode updates about the progress of Privatesend
+    bool StatusUpdate(int newState, int newEntriesCount, int newAccepted, int& errorID, int newSessionID = 0);
 
-    static bool IsCollateralAmount(CAmount nInputAmount);
+    /// As a client, check and sign the final transaction
+    bool SignFinalTransaction(CTransaction& finalTransactionNew, CNode* node);
 
-    static void AddDSTX(const CDarksendBroadcastTx& dstx);
-    static CDarksendBroadcastTx GetDSTX(const uint256& hash);
+    /// Get the last valid block hash for a given modulus
+    bool GetLastValidBlockHash(uint256& hash, int mod = 1, int nBlockHeight = 0);
+    /// Process a new block
+    void NewBlock();
+    void CompletedTransaction(bool error, int errorID);
+    void ClearLastMessage();
+    /// Used for liquidity providers
+    bool SendRandomPaymentToSelf();
 
-    static void UpdatedBlockTip(const CBlockIndex *pindex);
-    static void SyncTransaction(const CTransaction& tx, const CBlock* pblock);
+    /// Split up large inputs or make fee sized inputs
+    bool MakeCollateralAmounts();
+    bool CreateDenominated(CAmount nTotalValue);
+
+    /// Get the denominations for a list of outputs (returns a bitshifted integer)
+    int GetDenominations(const std::vector<CTxOut>& vout, bool fSingleRandomDenom = false);
+    int GetDenominations(const std::vector<CTxDSOut>& vout);
+
+    void GetDenominationsToString(int nDenom, std::string& strDenom);
+
+    /// Get the denominations for a specific amount of qyno.
+    int GetDenominationsByAmount(CAmount nAmount, int nDenomTarget = 0); // is not used anymore?
+    int GetDenominationsByAmounts(std::vector<CAmount>& vecAmount);
+
+    std::string GetMessageByID(int messageID);
+
+    //
+    // Relay Privatesend Messages
+    //
+
+    void RelayFinalTransaction(const int sessionID, const CTransaction& txNew);
+    void RelaySignaturesAnon(std::vector<CTxIn>& vin);
+    void RelayInAnon(std::vector<CTxIn>& vin, std::vector<CTxOut>& vout);
+    void RelayIn(const std::vector<CTxDSIn>& vin, const CAmount& nAmount, const CTransaction& txCollateral, const std::vector<CTxDSOut>& vout);
+    void RelayStatus(const int sessionID, const int newState, const int newEntriesCount, const int newAccepted, const int errorID = MSG_NOERR);
+    void RelayCompletedTransaction(const int sessionID, const bool error, const int errorID);
 };
 
-void ThreadCheckPrivateSend(CConnman& connman);
+void ThreadCheckPrivateSendPool();
 
 #endif

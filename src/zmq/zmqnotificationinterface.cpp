@@ -6,7 +6,7 @@
 #include "zmqpublishnotifier.h"
 
 #include "version.h"
-#include "validation.h"
+#include "main.h"
 #include "streams.h"
 #include "util.h"
 
@@ -126,15 +126,12 @@ void CZMQNotificationInterface::Shutdown()
     }
 }
 
-void CZMQNotificationInterface::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload)
+void CZMQNotificationInterface::UpdatedBlockTip(const CBlockIndex *pindex)
 {
-    if (fInitialDownload || pindexNew == pindexFork) // In IBD or blocks were disconnected without any new ones
-        return;
-
     for (std::list<CZMQAbstractNotifier*>::iterator i = notifiers.begin(); i!=notifiers.end(); )
     {
         CZMQAbstractNotifier *notifier = *i;
-        if (notifier->NotifyBlock(pindexNew))
+        if (notifier->NotifyBlock(pindex))
         {
             i++;
         }

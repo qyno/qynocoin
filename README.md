@@ -17,12 +17,12 @@ the Qyno Core software, see https://www.qyno.org/qyno-wallet-download.
 ## Coin Specs
 ----------------
 
-• PoW Algorithm: NeoScrypt  
-• Type: POW + Masternode
-• Block Time: 60 Seconds  
-• PoW Max Coin Output/Supply: 100,000,000 
-• Masternode Requirements: 5,000 NQNO
-• Maturity: 101 Confirmations 
+• PoW Algorithm: NQuark
+• Type: POWS+ Masternode
+• Block Time: 60 Seconds
+• PoW Max Coin Output/Supply: 100,000,000
+• Masternode Requirements: 5,000 NNO
+• Maturity: 101 Confirmations
 
 ## License
 -------

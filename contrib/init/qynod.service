@@ -8,8 +8,12 @@ Group=qyno
 
 Type=forking
 PIDFile=/var/lib/qynod/qynod.pid
+
 ExecStart=/usr/bin/qynod -daemon -pid=/var/lib/qynod/qynod.pid \
--conf=/etc/qyno/qyno.conf -datadir=/var/lib/qynod -disablewallet
+          -conf=/etc/qyno/qyno.conf -datadir=/var/lib/qynod
+
+ExecStop=-/usr/bin/qyno-cli -conf=/etc/qyno/qyno.conf \
+         -datadir=/var/lib/qynod stop
 
 Restart=always
 PrivateTmp=true

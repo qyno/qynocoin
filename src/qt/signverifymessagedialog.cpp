@@ -1,7 +1,8 @@
-// Copyright (c) 2011-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2017 The Dash Core developers
+// Copyright (c) 2011-2014 The Bitcoin developers
+// Copyright (c) 2014-2015 The Dash developers
+// Copyright (c) 2015-2017 The PIVX developers
 // Copyright (c) 2017-2018 The Qyno Core developers
-// Distributed under the MIT software license, see the accompanying
+// Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "signverifymessagedialog.h"
@@ -9,24 +10,20 @@
 
 #include "addressbookpage.h"
 #include "guiutil.h"
-#include "platformstyle.h"
 #include "walletmodel.h"
 
 #include "base58.h"
 #include "init.h"
-#include "validation.h" // For strMessageMagic
-#include "wallet/wallet.h"
+#include "wallet.h"
 
 #include <string>
 #include <vector>
 
 #include <QClipboard>
 
-SignVerifyMessageDialog::SignVerifyMessageDialog(const PlatformStyle *platformStyle, QWidget *parent) :
-    QDialog(parent),
-    ui(new Ui::SignVerifyMessageDialog),
-    model(0),
-    platformStyle(platformStyle)
+SignVerifyMessageDialog::SignVerifyMessageDialog(QWidget* parent) : QDialog(parent),
+                                                                    ui(new Ui::SignVerifyMessageDialog),
+                                                                    model(0)
 {
     ui->setupUi(this);
 
@@ -34,27 +31,6 @@ SignVerifyMessageDialog::SignVerifyMessageDialog(const PlatformStyle *platformSt
     ui->signatureOut_SM->setPlaceholderText(tr("Click \"Sign Message\" to generate signature"));
 #endif
 
-    QString theme = GUIUtil::getThemeName();
-
-#ifdef Q_OS_MAC // Icons on push buttons are very uncommon on Mac
-    ui->signMessageButton_SM->setIcon(QIcon());
-    ui->clearButton_SM->setIcon(QIcon());
-    ui->verifyMessageButton_VM->setIcon(QIcon());
-    ui->clearButton_VM->setIcon(QIcon());
-#else
-    ui->signMessageButton_SM->setIcon(QIcon(":/icons/" + theme + "/edit"));
-    ui->clearButton_SM->setIcon(QIcon(":/icons/" + theme + "/remove"));
-    ui->verifyMessageButton_VM->setIcon(QIcon(":/icons/" + theme + "/transaction_0"));
-    ui->clearButton_VM->setIcon(QIcon(":/icons/" + theme + "/remove"));
-#endif
-
-    // These icons are needed on Mac also
-    ui->addressBookButton_SM->setIcon(QIcon(":/icons/" + theme + "/address-book"));
-    ui->pasteButton_SM->setIcon(QIcon(":/icons/" + theme + "/editpaste"));
-    ui->copySignatureButton_SM->setIcon(QIcon(":/icons/" + theme + "/editcopy"));   
-    ui->addressBookButton_VM->setIcon(QIcon(":/icons/" + theme + "/address-book"));
-
-      
     GUIUtil::setupAddressWidget(ui->addressIn_SM, this);
     GUIUtil::setupAddressWidget(ui->addressIn_VM, this);
 
@@ -65,8 +41,8 @@ SignVerifyMessageDialog::SignVerifyMessageDialog(const PlatformStyle *platformSt
     ui->messageIn_VM->installEventFilter(this);
     ui->signatureIn_VM->installEventFilter(this);
 
-    ui->signatureOut_SM->setFont(GUIUtil::fixedPitchFont());
-    ui->signatureIn_VM->setFont(GUIUtil::fixedPitchFont());
+    ui->signatureOut_SM->setFont(GUIUtil::bitcoinAddressFont());
+    ui->signatureIn_VM->setFont(GUIUtil::bitcoinAddressFont());
 }
 
 SignVerifyMessageDialog::~SignVerifyMessageDialog()
@@ -74,18 +50,18 @@ SignVerifyMessageDialog::~SignVerifyMessageDialog()
     delete ui;
 }
 
-void SignVerifyMessageDialog::setModel(WalletModel *model)
+void SignVerifyMessageDialog::setModel(WalletModel* model)
 {
     this->model = model;
 }
 
-void SignVerifyMessageDialog::setAddress_SM(const QString &address)
+void SignVerifyMessageDialog::setAddress_SM(const QString& address)
 {
     ui->addressIn_SM->setText(address);
     ui->messageIn_SM->setFocus();
 }
 
-void SignVerifyMessageDialog::setAddress_VM(const QString &address)
+void SignVerifyMessageDialog::setAddress_VM(const QString& address)
 {
     ui->addressIn_VM->setText(address);
     ui->messageIn_VM->setFocus();
@@ -107,12 +83,10 @@ void SignVerifyMessageDialog::showTab_VM(bool fShow)
 
 void SignVerifyMessageDialog::on_addressBookButton_SM_clicked()
 {
-    if (model && model->getAddressTableModel())
-    {
-        AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::ReceivingTab, this);
+    if (model && model->getAddressTableModel()) {
+        AddressBookPage dlg(AddressBookPage::ForSelection, AddressBookPage::ReceivingTab, this);
         dlg.setModel(model->getAddressTableModel());
-        if (dlg.exec())
-        {
+        if (dlg.exec()) {
             setAddress_SM(dlg.getReturnValue());
         }
     }
@@ -132,44 +106,39 @@ void SignVerifyMessageDialog::on_signMessageButton_SM_clicked()
     ui->signatureOut_SM->clear();
 
     CBitcoinAddress addr(ui->addressIn_SM->text().toStdString());
-    if (!addr.IsValid())
-    {
+    if (!addr.IsValid()) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("The entered address is invalid.") + QString(" ") + tr("Please check the address and try again."));
         return;
     }
     CKeyID keyID;
-    if (!addr.GetKeyID(keyID))
-    {
+    if (!addr.GetKeyID(keyID)) {
         ui->addressIn_SM->setValid(false);
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("The entered address does not refer to a key.") + QString(" ") + tr("Please check the address and try again."));
         return;
     }
 
-    WalletModel::UnlockContext ctx(model->requestUnlock());
-    if (!ctx.isValid())
-    {
+    WalletModel::UnlockContext ctx(model->requestUnlock(true));
+    if (!ctx.isValid()) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("Wallet unlock was cancelled."));
         return;
     }
 
     CKey key;
-    if (!pwalletMain->GetKey(keyID, key))
-    {
+    if (!pwalletMain->GetKey(keyID, key)) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("Private key for the entered address is not available."));
         return;
     }
 
-    CHashWriter ss(SER_GETHASH, 0);
+    CDataStream ss(SER_GETHASH, 0);
     ss << strMessageMagic;
     ss << ui->messageIn_SM->document()->toPlainText().toStdString();
 
     std::vector<unsigned char> vchSig;
-    if (!key.SignCompact(ss.GetHash(), vchSig))
-    {
+    if (!key.SignCompact(Hash(ss.begin(), ss.end()), vchSig)) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(QString("<nobr>") + tr("Message signing failed.") + QString("</nobr>"));
         return;
@@ -198,12 +167,10 @@ void SignVerifyMessageDialog::on_clearButton_SM_clicked()
 
 void SignVerifyMessageDialog::on_addressBookButton_VM_clicked()
 {
-    if (model && model->getAddressTableModel())
-    {
-        AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::SendingTab, this);
+    if (model && model->getAddressTableModel()) {
+        AddressBookPage dlg(AddressBookPage::ForSelection, AddressBookPage::SendingTab, this);
         dlg.setModel(model->getAddressTableModel());
-        if (dlg.exec())
-        {
+        if (dlg.exec()) {
             setAddress_VM(dlg.getReturnValue());
         }
     }
@@ -212,15 +179,13 @@ void SignVerifyMessageDialog::on_addressBookButton_VM_clicked()
 void SignVerifyMessageDialog::on_verifyMessageButton_VM_clicked()
 {
     CBitcoinAddress addr(ui->addressIn_VM->text().toStdString());
-    if (!addr.IsValid())
-    {
+    if (!addr.IsValid()) {
         ui->statusLabel_VM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_VM->setText(tr("The entered address is invalid.") + QString(" ") + tr("Please check the address and try again."));
         return;
     }
     CKeyID keyID;
-    if (!addr.GetKeyID(keyID))
-    {
+    if (!addr.GetKeyID(keyID)) {
         ui->addressIn_VM->setValid(false);
         ui->statusLabel_VM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_VM->setText(tr("The entered address does not refer to a key.") + QString(" ") + tr("Please check the address and try again."));
@@ -230,29 +195,26 @@ void SignVerifyMessageDialog::on_verifyMessageButton_VM_clicked()
     bool fInvalid = false;
     std::vector<unsigned char> vchSig = DecodeBase64(ui->signatureIn_VM->text().toStdString().c_str(), &fInvalid);
 
-    if (fInvalid)
-    {
+    if (fInvalid) {
         ui->signatureIn_VM->setValid(false);
         ui->statusLabel_VM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_VM->setText(tr("The signature could not be decoded.") + QString(" ") + tr("Please check the signature and try again."));
         return;
     }
 
-    CHashWriter ss(SER_GETHASH, 0);
+    CDataStream ss(SER_GETHASH, 0);
     ss << strMessageMagic;
     ss << ui->messageIn_VM->document()->toPlainText().toStdString();
 
     CPubKey pubkey;
-    if (!pubkey.RecoverCompact(ss.GetHash(), vchSig))
-    {
+    if (!pubkey.RecoverCompact(Hash(ss.begin(), ss.end()), vchSig)) {
         ui->signatureIn_VM->setValid(false);
         ui->statusLabel_VM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_VM->setText(tr("The signature did not match the message digest.") + QString(" ") + tr("Please check the signature and try again."));
         return;
     }
 
-    if (!(CBitcoinAddress(pubkey.GetID()) == addr))
-    {
+    if (!(CBitcoinAddress(pubkey.GetID()) == addr)) {
         ui->statusLabel_VM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_VM->setText(QString("<nobr>") + tr("Message verification failed.") + QString("</nobr>"));
         return;
@@ -272,24 +234,19 @@ void SignVerifyMessageDialog::on_clearButton_VM_clicked()
     ui->addressIn_VM->setFocus();
 }
 
-bool SignVerifyMessageDialog::eventFilter(QObject *object, QEvent *event)
+bool SignVerifyMessageDialog::eventFilter(QObject* object, QEvent* event)
 {
-    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::FocusIn)
-    {
-        if (ui->tabWidget->currentIndex() == 0)
-        {
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::FocusIn) {
+        if (ui->tabWidget->currentIndex() == 0) {
             /* Clear status message on focus change */
             ui->statusLabel_SM->clear();
 
             /* Select generated signature */
-            if (object == ui->signatureOut_SM)
-            {
+            if (object == ui->signatureOut_SM) {
                 ui->signatureOut_SM->selectAll();
                 return true;
             }
-        }
-        else if (ui->tabWidget->currentIndex() == 1)
-        {
+        } else if (ui->tabWidget->currentIndex() == 1) {
             /* Clear status message on focus change */
             ui->statusLabel_VM->clear();
         }
