@@ -20,7 +20,7 @@ the Qyno Core software, see https://www.qyno.org/qyno-wallet-download.
 * Algorithm: Quark
 * Type: POS+ Masternode
 * Block Time: 60 Seconds
-* Max Coin Output/Supply: 100,000,000
+* Max Coin Output/Supply: 31,000,000
 * Masternode Requirements: 5,000 QNO
 * Maturity: 101 Confirmations
 
