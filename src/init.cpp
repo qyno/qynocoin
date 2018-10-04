@@ -1095,6 +1095,7 @@ bool AppInit2(boost::thread_group& threadGroup)
 
     CService addrProxy;
     bool fProxy = false;
+	SetLimited(NET_TOR);
     if (mapArgs.count("-proxy")) {
         addrProxy = CService(mapArgs["-proxy"], 9050);
         if (!addrProxy.IsValid())
@@ -1103,6 +1104,7 @@ bool AppInit2(boost::thread_group& threadGroup)
         SetProxy(NET_IPV4, addrProxy);
         SetProxy(NET_IPV6, addrProxy);
         SetNameProxy(addrProxy);
+		SetLimited(NET_TOR, false);
         fProxy = true;
     }
 
@@ -1110,14 +1112,16 @@ bool AppInit2(boost::thread_group& threadGroup)
     if (!(mapArgs.count("-onion") && mapArgs["-onion"] == "0") &&
         (fProxy || mapArgs.count("-onion"))) {
         CService addrOnion;
-        if (!mapArgs.count("-onion"))
+        if (!mapArgs.count("-onion")) {
             addrOnion = addrProxy;
+			SetLimited(NET_TOR); // set onions as unreachable
+		}
         else
             addrOnion = CService(mapArgs["-onion"], 9050);
         if (!addrOnion.IsValid())
             return InitError(strprintf(_("Invalid -onion address: '%s'"), mapArgs["-onion"]));
         SetProxy(NET_TOR, addrOnion);
-        SetReachable(NET_TOR);
+        SetLimited(NET_TOR, false);
     }
 
     // see Step 2: parameter interactions for more information about these
