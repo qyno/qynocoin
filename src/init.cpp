@@ -27,6 +27,7 @@
 #include "net.h"
 #include "rpcserver.h"
 #include "script/standard.h"
+#include "scheduler.h"
 #include "spork.h"
 #include "txdb.h"
 #include "ui_interface.h"
@@ -321,6 +322,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-pid=<file>", strprintf(_("Specify pid file (default: %s)"), "qynod.pid"));
 #endif
     strUsage += HelpMessageOpt("-reindex", _("Rebuild block chain index from current blk000??.dat files") + " " + _("on startup"));
+    strUsage += HelpMessageOpt("-resync", _("Delete blockchain folders and resync from scratch") + " " + _("on startup"));     
 #if !defined(WIN32)
     strUsage += HelpMessageOpt("-sysperms", _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)"));
 #endif
@@ -623,7 +625,7 @@ bool InitSanityCheck(void)
 /** Initialize qyno.
  *  @pre Parameters should be parsed and config file should be read.
  */
-bool AppInit2(boost::thread_group& threadGroup)
+bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler) 
 {
 // ********************************************************* Step 1: setup
 #ifdef _MSC_VER
@@ -938,6 +940,10 @@ bool AppInit2(boost::thread_group& threadGroup)
             return InitError(_("Unable to sign spork message, wrong key?"));
     }
 
+    // Start the lightweight task scheduler thread
+    CScheduler::Function serviceLoop = boost::bind(&CScheduler::serviceQueue, &scheduler);
+    threadGroup.create_thread(boost::bind(&TraceThread<CScheduler::Function>, "scheduler", serviceLoop));
+	
     /* Start the RPC server already.  It will be started in "warmup" mode
      * and not really process calls already (but it will signify connections
      * that the server is there and will be ready later).  Warmup mode will
@@ -1020,7 +1026,30 @@ bool AppInit2(boost::thread_group& threadGroup)
                 }
             }
         }
+        
+        if (GetBoolArg("-resync", false)) {
+            uiInterface.InitMessage(_("Preparing for resync..."));
+            // Delete the local blockchain folders to force a resync from scratch to get a consitent blockchain-state
+            filesystem::path blocksDir = GetDataDir() / "blocks";
+            filesystem::path chainstateDir = GetDataDir() / "chainstate";
+            
+            LogPrintf("Deleting blockchain folders blocks and chainstate\n");
+            // We delete in 2 individual steps in case one of the folder is missing already
+            try {
+                if (filesystem::exists(blocksDir)){
+                    boost::filesystem::remove_all(blocksDir);
+                    LogPrintf("-resync: folder deleted: %s\n", blocksDir.string().c_str());
+                }
+                if (filesystem::exists(chainstateDir)){
+                    boost::filesystem::remove_all(chainstateDir);
+                    LogPrintf("-resync: folder deleted: %s\n", chainstateDir.string().c_str());
+                }
 
+            } catch (boost::filesystem::filesystem_error& error) {
+                LogPrintf("Failed to delete blockchain folders %s\n", error.what());
+            }
+        }
+        
         LogPrintf("Using wallet %s\n", strWalletFile);
         uiInterface.InitMessage(_("Verifying wallet..."));
 
@@ -1640,7 +1669,7 @@ bool AppInit2(boost::thread_group& threadGroup)
     LogPrintf("mapAddressBook.size() = %u\n", pwalletMain ? pwalletMain->mapAddressBook.size() : 0);
 #endif
 
-    StartNode(threadGroup);
+    StartNode(threadGroup, scheduler);
 
 #ifdef ENABLE_WALLET
     // Generate coins in the background

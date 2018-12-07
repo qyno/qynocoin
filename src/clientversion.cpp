@@ -45,8 +45,8 @@ const std::string CLIENT_NAME("Qyno Core");
 //! git will put "#define GIT_ARCHIVE 1" on the next line inside archives.
 #define GIT_ARCHIVE 1
 #ifdef GIT_ARCHIVE
-#define GIT_COMMIT_ID "emem4549"
-#define GIT_COMMIT_DATE "19 Aug 2018 00:00:00 +0000"
+#define GIT_COMMIT_ID "dxk901"
+#define GIT_COMMIT_DATE "07 Dec 2018 07:30:00 +0000"
 #endif
 
 #define BUILD_DESC_WITH_SUFFIX(maj, min, rev, build, suffix) \

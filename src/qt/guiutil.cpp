@@ -111,7 +111,7 @@ void setupAddressWidget(QValidatedLineEdit* widget, QWidget* parent)
 #if QT_VERSION >= 0x040700
     // We don't want translators to use own addresses in translations
     // and this is the only place, where this address is supplied.
-    widget->setPlaceholderText(QObject::tr("Enter a Qyno address (e.g. %1)").arg("D7VFR83SQbiezrW72hjcWJtcfip5krte2Z"));
+    widget->setPlaceholderText(QObject::tr("Enter a Qyno address (e.g. %1)").arg("Ymc4nyAwCZjAfqYXLHLXNg8mUzPdnh2Tjj"));
 #endif
     widget->setValidator(new BitcoinAddressEntryValidator(parent));
     widget->setCheckValidator(new BitcoinAddressCheckValidator(parent));
@@ -255,6 +255,18 @@ void copyEntryData(QAbstractItemView* view, int column, int role)
     }
 }
 
+QString getEntryData(QAbstractItemView *view, int column, int role)
+{
+    if(!view || !view->selectionModel())
+        return QString();
+    QModelIndexList selection = view->selectionModel()->selectedRows(column);
+    if(!selection.isEmpty()) {
+        // Return first item
+        return (selection.at(0).data(role).toString());
+    }
+    return QString();
+}    
+    
 QString getSaveFileName(QWidget* parent, const QString& caption, const QString& dir, const QString& filter, QString* selectedSuffixOut)
 {
     QString selectedFilter;
@@ -916,5 +928,10 @@ QString formatPingTime(double dPingTime)
 {
     return dPingTime == 0 ? QObject::tr("N/A") : QString(QObject::tr("%1 ms")).arg(QString::number((int)(dPingTime * 1000), 10));
 }
-
+    
+QString formatTimeOffset(int64_t nTimeOffset)
+{
+  return QString(QObject::tr("%1 s")).arg(QString::number((int)nTimeOffset, 10));
+}
+    
 } // namespace GUIUtil

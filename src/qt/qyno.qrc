@@ -70,7 +70,7 @@
         <file alias="splash">res/images/splash.png</file>
         <file alias="splash_testnet">res/images/splash_testnet.png</file>
         <file alias="checked">res/images/checked.png</file>
-        <file alias="unchecked">res/images/unchecked.png</file>		
+        <file alias="unchecked">res/images/unchecked.png</file>
     </qresource>
     <qresource prefix="/movies">
         <file alias="spinner-000">res/movies/spinner-000.png</file>

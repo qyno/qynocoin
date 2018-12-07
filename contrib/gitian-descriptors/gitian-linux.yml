@@ -19,7 +19,7 @@ packages:
 - "bsdmainutils"
 - "ca-certificates"
 - "python"
-reference_datetime: "2018-09-24 09:30:00"
+reference_datetime: "2018-12-07 07:30:00"
 remotes:
 - "url": "https://github.com/qyno/qynocoin.git"
   "dir": "qyno"

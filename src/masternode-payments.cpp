@@ -299,8 +299,8 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
         }
     }
 
-    CAmount blockValue = GetBlockValue(pindexPrev->nHeight);
-    CAmount masternodePayment = GetMasternodePayment(pindexPrev->nHeight, blockValue);
+    CAmount blockValue = GetBlockValue(pindexPrev->nHeight + 1);
+    CAmount masternodePayment = GetMasternodePayment(pindexPrev->nHeight + 1, blockValue);
 
     if (hasPayment) {
         if (fProofOfStake) {
@@ -519,8 +519,14 @@ bool CMasternodeBlockPayees::IsTransactionValid(const CTransaction& txNew)
     
     std::string strPayeesPossible = "";
 
-    CAmount nReward = GetBlockValue(nBlockHeight);
+    //require at least 6 signatures
+    BOOST_FOREACH (CMasternodePayee& payee, vecPayments)
+        if (payee.nVotes >= nMaxSignatures)
+            nMaxSignatures = payee.nVotes;
 
+    // if we don't have at least 6 signatures on a payee, approve whichever is the longest chain
+    if (nMaxSignatures < MNPAYMENTS_SIGNATURES_REQUIRED) return true;  
+    
     if (IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT)) {
         // Get a stable number of masternodes by ignoring newly activated (< 8000 sec old) masternodes
         nMasternode_Drift_Count = mnodeman.stable_size() + Params().MasternodeCountDrift();
@@ -532,15 +538,8 @@ bool CMasternodeBlockPayees::IsTransactionValid(const CTransaction& txNew)
         nMasternode_Drift_Count = mnodeman.size() + Params().MasternodeCountDrift();
     }
 
+    CAmount nReward = GetBlockValue(nBlockHeight);
     CAmount requiredMasternodePayment = GetMasternodePayment(nBlockHeight, nReward, nMasternode_Drift_Count);
-
-    //require at least 6 signatures
-    BOOST_FOREACH (CMasternodePayee& payee, vecPayments)
-        if (payee.nVotes >= nMaxSignatures && payee.nVotes >= MNPAYMENTS_SIGNATURES_REQUIRED)
-            nMaxSignatures = payee.nVotes;
-
-    // if we don't have at least 6 signatures on a payee, approve whichever is the longest chain
-    if (nMaxSignatures < MNPAYMENTS_SIGNATURES_REQUIRED) return true;
 
     BOOST_FOREACH (CMasternodePayee& payee, vecPayments) {
         bool found = false;

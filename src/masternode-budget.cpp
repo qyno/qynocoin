@@ -29,7 +29,7 @@ int nSubmittedFinalBudget;
 int GetBudgetPaymentCycleBlocks()
 {
     // Amount of blocks in a months period of time (using 1 minutes per) = (60*24*30)
-    if (Params().NetworkID() == CBaseChainParams::MAIN) return 43200;
+    if (Params().NetworkID() == CBaseChainParams::MAIN) return 999999999; // future release
     //for testing purposes
 
     return 144; //ten times per day
@@ -477,7 +477,7 @@ void CBudgetManager::FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, b
         ++it;
     }
 
-    CAmount blockValue = GetBlockValue(pindexPrev->nHeight);
+    CAmount blockValue = GetBlockValue(pindexPrev->nHeight + 1);
 
     if (fProofOfStake) {
         if (nHighestCount > 0) {
